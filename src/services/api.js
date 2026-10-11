@@ -77,6 +77,9 @@ export const userAPI = {
     }),
   search: (query) => api.get('/users/search', { params: { q: query } }),
   updateSettings: (data) => api.put('/users/settings', data),
+  getBlockedUsers: () => api.get('/users/blocked'),
+  blockUser: (id) => api.put(`/users/${id}/block`),
+  unblockUser: (id) => api.delete(`/users/${id}/block`),
 };
 
 // ================= POST APIs =================

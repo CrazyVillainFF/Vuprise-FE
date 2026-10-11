@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { messageAPI, notificationAPI } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -11,9 +11,12 @@ export const NotificationProvider = ({ children }) => {
   const [unreadMessagesByConversation, setUnreadMessagesByConversation] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const hasLoadedNotifications = useRef(false);
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) {
+      hasLoadedNotifications.current = false;
+      setLoading(false);
       setNotifications([]);
       setUnreadCount(0);
       setError('');
@@ -21,12 +24,13 @@ export const NotificationProvider = ({ children }) => {
     }
 
     try {
-      setLoading(true);
+      if (!hasLoadedNotifications.current) setLoading(true);
       const res = await notificationAPI.getNotifications();
       if (res.data.success) {
         setNotifications(res.data.notifications || []);
         setUnreadCount(res.data.unreadCount || 0);
         setError('');
+        hasLoadedNotifications.current = true;
       }
     } catch (err) {
       console.error('[Notifications] Failed to load:', err.message);
@@ -67,15 +71,23 @@ export const NotificationProvider = ({ children }) => {
 
     // Poll every 30 seconds if authenticated
     if (isAuthenticated) {
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
+      const interval = setInterval(fetchNotifications, 15000);
+      const refreshOnFocus = () => { if (document.visibilityState === 'visible') fetchNotifications(); };
+      const refreshOnRequest = () => fetchNotifications();
+      document.addEventListener('visibilitychange', refreshOnFocus);
+      window.addEventListener('nexora:notifications-refresh', refreshOnRequest);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', refreshOnFocus);
+        window.removeEventListener('nexora:notifications-refresh', refreshOnRequest);
+      };
     }
   }, [fetchNotifications, isAuthenticated]);
 
   useEffect(() => {
     fetchUnreadMessages();
     if (isAuthenticated) {
-      const interval = setInterval(fetchUnreadMessages, 10000);
+      const interval = setInterval(fetchUnreadMessages, 15000);
       return () => clearInterval(interval);
     }
   }, [fetchUnreadMessages, isAuthenticated]);

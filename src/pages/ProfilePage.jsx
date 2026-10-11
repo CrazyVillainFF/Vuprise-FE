@@ -13,7 +13,13 @@ import {
   IconButton,
   Tooltip,
   Snackbar,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
@@ -29,6 +35,7 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import WorkOutlineOutlinedIcon from '@mui/icons-material/WorkOutlineOutlined';
 import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
 import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
+import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 
 import { useAuth } from '../context/AuthContext';
 import { userAPI, postAPI } from '../services/api';
@@ -42,7 +49,7 @@ import { subscribeRealtime, watchPresence } from '../services/realtime';
 
 const ProfilePage = () => {
   const { id } = useParams();
-  const { user: currentUser, updateUser } = useAuth();
+  const { user: currentUser, updateUser, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState(null);
@@ -58,6 +65,9 @@ const ProfilePage = () => {
   const [coverModalOpen, setCoverModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [toastSeverity, setToastSeverity] = useState('success');
+  const [accountMenuAnchor, setAccountMenuAnchor] = useState(null);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [blockActionLoading, setBlockActionLoading] = useState(false);
 
   const profileUserId = id || (currentUser ? currentUser._id : null);
   const isOwnProfile = currentUser && profileUserId === currentUser._id;
@@ -156,6 +166,49 @@ const ProfilePage = () => {
         setToastSeverity('error');
         setToastMessage(error.message || 'Could not share this profile.');
       }
+    }
+  };
+
+  const handleBlockAccount = async () => {
+    if (!profile?._id || blockActionLoading) return;
+    setBlockActionLoading(true);
+    try {
+      await userAPI.blockUser(profile._id);
+      setProfile((current) => ({ ...current, isBlockedByViewer: true }));
+      setPosts([]);
+      setPostsError(null);
+      setBlockDialogOpen(false);
+      setToastSeverity('success');
+      setToastMessage(`${profile.name || 'Account'} blocked. Their posts are now hidden from you.`);
+    } catch (requestError) {
+      setToastSeverity('error');
+      setToastMessage(requestError.message || 'Could not block this account. Please try again.');
+    } finally {
+      setBlockActionLoading(false);
+    }
+  };
+
+  const handleUnblockAccount = async () => {
+    if (!profile?._id || blockActionLoading) return;
+    setAccountMenuAnchor(null);
+    setBlockActionLoading(true);
+    try {
+      await userAPI.unblockUser(profile._id);
+      setProfile((current) => ({ ...current, isBlockedByViewer: false }));
+      setToastSeverity('success');
+      setToastMessage(`${profile.name || 'Account'} unblocked.`);
+      try {
+        const response = await postAPI.getUserPosts(profile._id);
+        setPosts(response.data.posts || []);
+        setPostsError(null);
+      } catch (requestError) {
+        setPostsError(requestError.message || 'The account was unblocked, but its posts could not be refreshed.');
+      }
+    } catch (requestError) {
+      setToastSeverity('error');
+      setToastMessage(requestError.message || 'Could not unblock this account. Please try again.');
+    } finally {
+      setBlockActionLoading(false);
     }
   };
 
@@ -283,12 +336,20 @@ const ProfilePage = () => {
                 </Button>
               </>
             ) : (
-              <ConnectionButton
-                userId={profile._id}
-                userName={profile.name}
-                initialStatus={profile.connectionStatus}
-                connectionId={profile.connectionId}
-              />
+              <>
+                <ConnectionButton
+                  userId={profile._id}
+                  userName={profile.name}
+                  initialStatus={profile.connectionStatus}
+                  connectionId={profile.connectionId}
+                />
+                {isAuthenticated && <IconButton
+                  aria-label={`More actions for ${profile.name}`}
+                  aria-expanded={Boolean(accountMenuAnchor)}
+                  onClick={(event) => setAccountMenuAnchor(event.currentTarget)}
+                  sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}
+                ><MoreHorizRoundedIcon /></IconButton>}
+              </>
             )}
             <Button
               variant="outlined"
@@ -524,6 +585,23 @@ const ProfilePage = () => {
           {toastMessage}
         </Alert>
       </Snackbar>
+      <Menu anchorEl={accountMenuAnchor} open={Boolean(accountMenuAnchor)} onClose={() => setAccountMenuAnchor(null)}>
+        {profile.isBlockedByViewer
+          ? <MenuItem onClick={handleUnblockAccount} disabled={blockActionLoading}>Unblock {profile.name}</MenuItem>
+          : <MenuItem onClick={() => { setAccountMenuAnchor(null); setBlockDialogOpen(true); }} disabled={blockActionLoading}>Block {profile.name}</MenuItem>}
+      </Menu>
+      <Dialog open={blockDialogOpen} onClose={() => !blockActionLoading && setBlockDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Block “{profile.name}”?</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary">Their posts will be hidden from your feed and post views. You can unblock this account from this profile later.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBlockDialogOpen(false)} disabled={blockActionLoading}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={handleBlockAccount} disabled={blockActionLoading}>
+            {blockActionLoading ? 'Blocking…' : 'Block account'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

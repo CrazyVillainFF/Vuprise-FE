@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Box, Stack, Chip, Typography, Button, CircularProgress } from '@mui/material';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Container, Box, Stack, Chip, Typography, Button, CircularProgress, Alert, LinearProgress } from '@mui/material';
 import PostCard from '../components/PostCard';
 import { PostSkeleton } from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -18,10 +18,12 @@ const HomePage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [feedHasLoaded, setFeedHasLoaded] = useState(false);
+  const hasLoadedFeed = useRef(false);
 
   const fetchFeed = useCallback(async (tag = selectedTag, pageNum = 1, append = false) => {
     try {
-      if (pageNum === 1) setLoading(true);
+      if (pageNum === 1 && !hasLoadedFeed.current) setLoading(true);
       else setLoadingMore(true);
       setError(null);
       const params = { page: pageNum, limit: 10, ...(tag !== 'All' && { tag }) };
@@ -30,10 +32,14 @@ const HomePage = () => {
         const newPosts = res.data.posts || [];
         setPosts((prev) => (append ? [...prev, ...newPosts] : newPosts));
         setHasMore(pageNum < (res.data.totalPages || 1));
+        if (pageNum === 1) {
+          hasLoadedFeed.current = true;
+          setFeedHasLoaded(true);
+        }
       }
     } catch (err) {
       console.error('[Feed Error]', err.message);
-      setError('Unable to load feed discussions. Please check your network connection.');
+      if (!hasLoadedFeed.current || pageNum !== 1) setError('Unable to load feed discussions. Please check your network connection.');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -109,9 +115,11 @@ const HomePage = () => {
         </Stack>
       </Box>
 
-      {loading ? (
+      {loading && feedHasLoaded && <LinearProgress sx={{ mb: 1.5, borderRadius: 1 }} aria-label="Refreshing feed" />}
+      {error && posts.length > 0 && <Alert severity="warning" sx={{ mb: 1.5 }}>{error}</Alert>}
+      {loading && !feedHasLoaded ? (
         <Stack spacing={2}><PostSkeleton /><PostSkeleton /><PostSkeleton /></Stack>
-      ) : error ? (
+      ) : error && posts.length === 0 ? (
         <ErrorState message={error} onRetry={() => fetchFeed(selectedTag, 1, false)} />
       ) : posts.length > 0 ? (
         <Stack spacing={0} sx={{ minWidth: 0, width: '100%' }}>

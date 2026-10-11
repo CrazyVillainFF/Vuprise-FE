@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -41,12 +41,14 @@ const PeoplePage = () => {
   const [selectedSkill, setSelectedSkill] = useState('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const loadedData = useRef({ explore: false, connections: false });
 
   const navigate = useNavigate();
 
-  const fetchExploreUsers = useCallback(async () => {
+  const fetchExploreUsers = useCallback(async (options = {}) => {
+    const showLoadingState = options?.silent !== true && !loadedData.current.explore;
     try {
-      setLoading(true);
+      if (showLoadingState) setLoading(true);
       setError(null);
       const params = {
         limit: 24,
@@ -56,24 +58,27 @@ const PeoplePage = () => {
       const res = await userAPI.getUsers(params);
       if (res.data.success) {
         setUsers(res.data.users || []);
+        loadedData.current.explore = true;
       }
     } catch (err) {
       console.error('[Explore Users Error]', err.message);
-      setError('Unable to load professionals.');
+      if (showLoadingState) setError('Unable to load professionals.');
     } finally {
       setLoading(false);
     }
   }, [search, selectedSkill]);
 
-  const fetchConnectionsData = useCallback(async () => {
+  const fetchConnectionsData = useCallback(async (options = {}) => {
+    const showLoadingState = options?.silent !== true && !loadedData.current.connections;
     try {
-      setLoading(true);
+      if (showLoadingState) setLoading(true);
       setError(null);
       const res = await connectionAPI.getConnections();
       if (res.data.success) {
         setConnections(res.data.connections || []);
         setPendingIncoming(res.data.pendingIncoming || []);
         setPendingOutgoing(res.data.pendingOutgoing || []);
+        loadedData.current.connections = true;
       }
     } catch (err) {
       console.error('[Connections Error]', err.message);
@@ -94,7 +99,7 @@ const PeoplePage = () => {
     try {
       const res = await connectionAPI.acceptRequest(requestId);
       if (res.data.success) {
-        fetchConnectionsData();
+        fetchConnectionsData({ silent: true });
       }
     } catch (err) {
       console.error('[Accept Error]', err.message);
@@ -105,7 +110,7 @@ const PeoplePage = () => {
     try {
       const res = await connectionAPI.rejectOrRemove(requestId);
       if (res.data.success) {
-        fetchConnectionsData();
+        fetchConnectionsData({ silent: true });
       }
     } catch (err) {
       console.error('[Decline Error]', err.message);
@@ -210,7 +215,7 @@ const PeoplePage = () => {
             <Grid container spacing={2.5}>
               {users.map((u) => (
                 <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={u._id}>
-                  <UserCard user={u} onConnectionChanged={fetchExploreUsers} />
+                  <UserCard user={u} onConnectionChanged={() => fetchExploreUsers({ silent: true })} />
                 </Grid>
               ))}
             </Grid>
@@ -246,7 +251,7 @@ const PeoplePage = () => {
                 <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={u._id}>
                   <UserCard
                     user={{ ...u, connectionStatus: 'connected' }}
-                    onConnectionChanged={fetchConnectionsData}
+                    onConnectionChanged={() => fetchConnectionsData({ silent: true })}
                   />
                 </Grid>
               ))}

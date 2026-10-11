@@ -11,7 +11,8 @@ import {
   InputAdornment,
   Card,
   CardContent,
-  CircularProgress
+  CircularProgress,
+  LinearProgress
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
@@ -105,6 +106,8 @@ const SearchPage = () => {
         </form>
       </Card>
 
+      {loading && totalResults > 0 && <LinearProgress sx={{ mb: 2, borderRadius: 1 }} aria-label="Updating search results" />}
+
       {/* Tabs */}
       <Card sx={{ mb: 3 }}>
         <Tabs
@@ -121,7 +124,7 @@ const SearchPage = () => {
         </Tabs>
       </Card>
 
-      {loading ? (
+      {loading && totalResults === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <CircularProgress size={44} />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>

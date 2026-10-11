@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip, Typography } from '@mui/material';
+import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip, Typography } from '@mui/material';
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
@@ -23,6 +23,7 @@ const ConnectionButton = ({
   const [loading, setLoading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [disconnectConfirmOpen, setDisconnectConfirmOpen] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   // If viewing self, do not show button
   if (status === 'self' || (currentUser && currentUser._id === userId)) {
@@ -38,13 +39,16 @@ const ConnectionButton = ({
 
     try {
       setLoading(true);
+      setActionError('');
       const res = await connectionAPI.sendRequest(userId);
       if (res.data.success) {
         setStatus('pending_sent');
+        window.dispatchEvent(new Event('nexora:notifications-refresh'));
         if (onStatusChange) onStatusChange('pending_sent');
       }
     } catch (err) {
       console.error('[Connection] Error sending request:', err.message);
+      setActionError(err.message || 'Connection request could not be sent.');
     } finally {
       setLoading(false);
     }
@@ -54,13 +58,16 @@ const ConnectionButton = ({
     e.stopPropagation();
     try {
       setLoading(true);
+      setActionError('');
       const res = await connectionAPI.acceptRequest(connectionId || userId);
       if (res.data.success) {
         setStatus('connected');
+        window.dispatchEvent(new Event('nexora:notifications-refresh'));
         if (onStatusChange) onStatusChange('connected');
       }
     } catch (err) {
       console.error('[Connection] Error accepting:', err.message);
+      setActionError(err.message || 'Connection request could not be accepted.');
     } finally {
       setLoading(false);
     }
@@ -70,14 +77,17 @@ const ConnectionButton = ({
     e?.stopPropagation();
     try {
       setLoading(true);
+      setActionError('');
       const res = await connectionAPI.rejectOrRemove(connectionId || userId);
       if (res.data.success) {
         setStatus('none');
+        window.dispatchEvent(new Event('nexora:notifications-refresh'));
         setDisconnectConfirmOpen(false);
         if (onStatusChange) onStatusChange('none');
       }
     } catch (err) {
       console.error('[Connection] Error rejecting/removing:', err.message);
+      setActionError(err.message || 'Connection could not be updated.');
     } finally {
       setLoading(false);
     }
@@ -92,13 +102,14 @@ const ConnectionButton = ({
   }
 
   if (status === 'pending_received') {
-    return (
-      <Stack direction="row" spacing={1} sx={sx} onClick={(e) => e.stopPropagation()}>
+      return (
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={sx} onClick={(e) => e.stopPropagation()}>
         <Button
           size={size}
           variant="contained"
           color="primary"
           onClick={handleAccept}
+          disabled={loading}
           startIcon={<CheckRoundedIcon />}
         >
           Accept
@@ -108,42 +119,32 @@ const ConnectionButton = ({
           variant="outlined"
           color="inherit"
           onClick={handleRejectOrRemove}
+          disabled={loading}
         >
           Decline
         </Button>
+        {actionError && <Alert severity="error" sx={{ flexBasis: '100%' }}>{actionError}</Alert>}
       </Stack>
     );
   }
 
   if (status === 'pending_sent') {
     return (
-      <Tooltip title="Click to cancel pending invitation">
-        <Button
-          size={size}
-          variant="outlined"
-          color="inherit"
-          onClick={handleRejectOrRemove}
-          startIcon={<HourglassEmptyRoundedIcon />}
-          sx={{
-            borderColor: 'divider',
-            color: 'text.secondary',
-            '&:hover': {
-              borderColor: 'error.main',
-              color: 'error.main',
-              bgcolor: 'rgba(239, 68, 68, 0.05)',
-            },
-            ...sx
-          }}
-        >
-          Pending
-        </Button>
-      </Tooltip>
+      <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+        <Tooltip title="Click to cancel pending invitation">
+          <Button size={size} variant="outlined" color="inherit" onClick={handleRejectOrRemove} startIcon={<HourglassEmptyRoundedIcon />} sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'error.main', color: 'error.main', bgcolor: 'rgba(239, 68, 68, 0.05)' }, ...sx }}>
+            Pending
+          </Button>
+        </Tooltip>
+        {actionError && <Alert severity="error" sx={{ maxWidth: 320 }}>{actionError}</Alert>}
+      </Stack>
     );
   }
 
   if (status === 'connected') {
     return (
       <>
+        {actionError && <Alert severity="error" sx={{ mb: 1 }}>{actionError}</Alert>}
         <Button
           size={size}
           variant="outlined"
@@ -196,16 +197,12 @@ const ConnectionButton = ({
 
   // Default: 'none'
   return (
-    <Button
-      size={size}
-      variant="contained"
-      color="primary"
-      onClick={handleConnect}
-      startIcon={<PersonAddOutlinedIcon />}
-      sx={sx}
-    >
-      Connect
-    </Button>
+    <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+      <Button size={size} variant="contained" color="primary" onClick={handleConnect} startIcon={<PersonAddOutlinedIcon />} sx={sx}>
+        Connect
+      </Button>
+      {actionError && <Alert severity="error" sx={{ maxWidth: 320 }}>{actionError}</Alert>}
+    </Stack>
   );
 };
 
