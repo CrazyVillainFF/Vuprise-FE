@@ -640,9 +640,8 @@ const MessagesPage = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl" sx={{ minWidth: 0 }}>
-        <Skeleton variant="text" width={190} height={42} sx={{ mb: 2 }} />
-        <Paper variant="outlined" sx={{ height: { xs: 'min(68dvh, 640px)', md: 'min(72dvh, 760px)' }, minHeight: { xs: 400, md: 520 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px minmax(0, 1fr)' }, overflow: 'hidden' }}>
+      <Container maxWidth="xl" sx={{ minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Paper variant="outlined" sx={{ flex: 1, minHeight: { xs: 400, md: 520 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px minmax(0, 1fr)' }, overflow: 'hidden' }}>
           <Box sx={{ p: 2, borderRight: { md: 1 }, borderColor: 'divider' }}>
             <Skeleton variant="text" width="60%" height={32} />
             <Skeleton variant="rounded" height={42} sx={{ my: 2 }} />
@@ -655,17 +654,7 @@ const MessagesPage = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ minWidth: 0 }}>
-      {!active && !activeGroup && (
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2.5 }}>
-          <ChatBubbleOutlineRoundedIcon color="primary" />
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" fontWeight={800}>Messages</Typography>
-            <Typography variant="body2" color="text.secondary">Chat with your accepted connections on any device after you sign in</Typography>
-          </Box>
-        </Stack>
-      )}
-
+    <Container maxWidth="xl" sx={{ minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
       {error && <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice('')}>{notice}</Alert>}
       {backupPrompt && (
@@ -678,12 +667,11 @@ const MessagesPage = () => {
       <Paper
         variant="outlined"
         sx={{
+          flex: 1,
           display: 'grid',
           gridTemplateColumns: mobile && (active || activeGroup) ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', md: '360px minmax(0, 1fr)' },
-          height: active || activeGroup
-            ? { xs: 'calc(100dvh - 155px)', md: 'calc(100dvh - 180px)' }
-            : { xs: 'min(68dvh, 640px)', md: 'min(72dvh, 760px)' },
-          minHeight: active || activeGroup ? { xs: 420, md: 540 } : { xs: 400, md: 520 },
+          height: '100%',
+          minHeight: { xs: 400, md: 520 },
           overflow: 'hidden',
           borderRadius: 3,
           bgcolor: 'background.paper',
@@ -920,10 +908,9 @@ const MessagesPage = () => {
                 </Box>
               </>
             ) : (
-              <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, minHeight: 300, p: 4, textAlign: 'center' }}>
+              <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, minHeight: 0, p: 4, textAlign: 'center' }}>
                 <ChatBubbleOutlineRoundedIcon color="primary" sx={{ fontSize: 42, mb: 1.5 }} />
                 <Typography variant="h6" fontWeight={700}>Your messages</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 380 }}>Choose a connection to open an existing chat or start a new one.</Typography>
               </Stack>
             )}
           </Box>
