@@ -44,7 +44,10 @@ api.interceptors.response.use(
       error.message ||
       'An unexpected network error occurred. Please try again.';
 
-    return Promise.reject(new Error(message));
+    const normalizedError = new Error(message);
+    normalizedError.code = error.code;
+    normalizedError.response = error.response;
+    return Promise.reject(normalizedError);
   }
 );
 
@@ -79,19 +82,21 @@ export const userAPI = {
 
 // ================= POST APIs =================
 export const postAPI = {
-  createPost: (formDataOrData) => {
+  createPost: (formDataOrData, config = {}) => {
     const isFormData = formDataOrData instanceof FormData;
     return api.post('/posts', formDataOrData, {
-      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
+      ...config,
+      headers: { ...(config.headers || {}), ...(isFormData ? { 'Content-Type': 'multipart/form-data' } : {}) },
     });
   },
   getFeed: (params) => api.get('/posts/feed', { params }),
   getUserPosts: (userId, params) => api.get(`/posts/user/${userId}`, { params }),
   getPostById: (id) => api.get(`/posts/${id}`),
-  updatePost: (id, formDataOrData) => {
+  updatePost: (id, formDataOrData, config = {}) => {
     const isFormData = formDataOrData instanceof FormData;
     return api.put(`/posts/${id}`, formDataOrData, {
-      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
+      ...config,
+      headers: { ...(config.headers || {}), ...(isFormData ? { 'Content-Type': 'multipart/form-data' } : {}) },
     });
   },
   deletePost: (id) => api.delete(`/posts/${id}`),
@@ -112,6 +117,17 @@ export const connectionAPI = {
   acceptRequest: (requestIdOrUserId) => api.put(`/connections/${requestIdOrUserId}/accept`),
   rejectOrRemove: (requestIdOrUserId) => api.delete(`/connections/${requestIdOrUserId}`),
   getConnections: () => api.get('/connections'),
+};
+
+export const groupAPI = {
+  list: () => api.get('/groups'),
+  get: (id) => api.get(`/groups/${id}`),
+  create: (data) => api.post('/groups', data, { headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
+  update: (id, data) => api.patch(`/groups/${id}`, data, { headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
+  invite: (id, userId) => api.post(`/groups/${id}/invitations/${userId}`),
+  respond: (id, action) => api.post(`/groups/${id}/invitations/${action}`),
+  setRole: (id, userId, role) => api.patch(`/groups/${id}/members/${userId}/role`, { role }),
+  remove: (id, userId) => api.delete(`/groups/${id}/members/${userId}`),
 };
 
 // ================= NOTIFICATION APIs =================

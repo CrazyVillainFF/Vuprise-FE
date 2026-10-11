@@ -15,7 +15,8 @@ import {
   DialogContent,
   DialogActions,
   Divider,
-  Alert
+  Alert,
+  Slider
 } from '@mui/material';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import TagOutlinedIcon from '@mui/icons-material/TagOutlined';
@@ -34,34 +35,53 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   const [content, setContent] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoPreview, setVideoPreview] = useState('');
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
+  const uploadControllerRef = useRef(null);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file (JPEG, PNG, WEBP).');
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      setError('Choose an image or video file.');
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image size exceeds 10MB.');
+    const isVideo = file.type.startsWith('video/');
+    if (file.size > (isVideo ? 250 : 10) * 1024 * 1024) {
+      setError(isVideo ? 'Video size exceeds 250MB.' : 'Image size exceeds 10MB.');
       return;
     }
 
     setError(null);
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
+    setImageFile(null); setImagePreview(null); setVideoFile(null);
+    if (isVideo) {
+      const url = URL.createObjectURL(file);
+      setVideoPreview(url); setVideoFile(file);
+      setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
+    } else {
+      setVideoPreview('');
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleRemoveImage = () => {
     setImageFile(null);
     setImagePreview(null);
+    setVideoFile(null);
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
+    setVideoPreview(''); setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -72,29 +92,41 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   };
 
   const handlePublish = async () => {
-    if (!content.trim() && !imageFile) {
-      setError('Please add some text or an image to share.');
+    if (!content.trim() && !imageFile && !videoFile) {
+      setError('Please add some text or media to share.');
       return;
+    }
+    if (videoFile && (!videoDuration || trimEnd <= trimStart || trimEnd - trimStart > 35.0001)) {
+      setError('Select a valid video clip that is 35 seconds or shorter.'); return;
     }
 
     try {
       setSubmitting(true);
       setError(null);
+      uploadControllerRef.current = new AbortController();
 
       const formData = new FormData();
       if (content.trim()) formData.append('content', content.trim());
       if (imageFile) formData.append('image', imageFile);
+      if (videoFile) {
+        formData.append('video', videoFile);
+        formData.append('trimStart', String(trimStart));
+        formData.append('trimEnd', String(trimEnd));
+      }
 
-      const res = await postAPI.createPost(formData);
+      const res = await postAPI.createPost(formData, { signal: uploadControllerRef.current.signal, timeout: 300000, onUploadProgress: (event) => setUploadProgress(Math.round((event.loaded * 100) / (event.total || event.loaded))) });
       if (res.data.success && res.data.post) {
         if (onPostCreated) onPostCreated(res.data.post);
         setContent('');
         handleRemoveImage();
+        setUploadProgress(0);
         setOpenModal(false);
       }
     } catch (err) {
-      setError(err.message || 'Failed to publish post. Please try again.');
+      setError(err.code === 'ERR_CANCELED' ? 'Upload canceled. Retry publishing if needed.' : (err.message || 'Failed to publish post. Please try again.'));
     } finally {
+      uploadControllerRef.current = null;
+      setUploadProgress(0);
       setSubmitting(false);
     }
   };
@@ -223,7 +255,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
             type="file"
             ref={fileInputRef}
             onChange={handleImageSelect}
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
             style={{ display: 'none' }}
           />
 
@@ -255,6 +287,26 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
               >
                 <CloseRoundedIcon fontSize="small" />
               </IconButton>
+            </Box>
+          )}
+
+          {videoPreview && (
+            <Box sx={{ position: 'relative', mt: 2, borderRadius: 2.5, overflow: 'hidden', bgcolor: '#05070b' }}>
+              <Box component="video" src={videoPreview} controls playsInline preload="metadata" onPlay={(event) => { if (event.currentTarget.currentTime < trimStart || event.currentTarget.currentTime >= trimEnd) event.currentTarget.currentTime = trimStart; }} onLoadedMetadata={(event) => {
+                const duration = event.currentTarget.duration;
+                if (!Number.isFinite(duration) || duration <= 0) { setError('This video’s duration could not be verified.'); return; }
+                setVideoDuration(duration); setTrimEnd(Math.min(duration, 35));
+              }} onTimeUpdate={(event) => { const video = event.currentTarget; if (video.currentTime < trimStart) video.currentTime = trimStart; if (video.currentTime >= trimEnd && trimEnd > trimStart) { video.pause(); video.currentTime = trimStart; } }} sx={{ width: '100%', maxHeight: 280, display: 'block' }} />
+              {videoDuration > 0 && <Box sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary">Trim clip · selected {(trimEnd - trimStart).toFixed(2)}s / 35s max</Typography>
+                <Slider min={0} max={videoDuration} step={0.05} value={[trimStart, trimEnd]} onChange={(_, value) => {
+                  const [start, end] = value;
+                  if (end - start <= 35) { setTrimStart(start); setTrimEnd(end); }
+                  else if (start !== trimStart) setTrimStart(Math.max(0, end - 35));
+                  else setTrimEnd(Math.min(videoDuration, start + 35));
+                }} valueLabelDisplay="auto" valueLabelFormat={(value) => `${Number(value).toFixed(1)}s`} aria-label="Video trim range" />
+              </Box>}
+              <IconButton onClick={handleRemoveImage} disabled={submitting} aria-label="Remove video" sx={{ position: 'absolute', top: 10, right: 10, bgcolor: 'rgba(0,0,0,.65)', color: '#fff' }}><CloseRoundedIcon fontSize="small" /></IconButton>
             </Box>
           )}
 
@@ -298,15 +350,16 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
             <Typography variant="caption" color="text.secondary">
               {content.length} / 5000
             </Typography>
+            {submitting && uploadProgress < 100 && <Button color="inherit" onClick={() => uploadControllerRef.current?.abort()}>Cancel upload</Button>}
             <Button
               variant="contained"
               color="primary"
               onClick={handlePublish}
-              disabled={submitting || (!content.trim() && !imageFile)}
+              disabled={submitting || (!content.trim() && !imageFile && !videoFile)}
               endIcon={submitting ? <CircularProgress size={16} color="inherit" /> : <SendRoundedIcon />}
               sx={{ px: 3 }}
             >
-              {submitting ? 'Publishing...' : 'Publish'}
+              {submitting ? (uploadProgress ? `Uploading ${uploadProgress}%` : 'Publishing...') : 'Publish'}
             </Button>
           </Stack>
         </DialogActions>

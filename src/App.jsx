@@ -27,6 +27,7 @@ import MessagesPage from './pages/MessagesPage';
 import PostDetailsPage from './pages/PostDetailsPage';
 import SatisfiedGamesPage from './pages/SatisfiedGamesPage';
 import SatisfiedGamesPrompt from './components/SatisfiedGamesPrompt';
+import GroupsPage from './pages/GroupsPage';
 
 const GhostCursor = React.lazy(() => import('./components/reactbits/GhostCursor'));
 
@@ -105,6 +106,7 @@ function App() {
               >
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/messages" element={<MessagesPage />} />
+                <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/post/:id" element={<PostDetailsPage />} />
                 <Route path="/profile/:id" element={<ProfilePage />} />
                 <Route path="/profile/edit" element={<EditProfilePage />} />

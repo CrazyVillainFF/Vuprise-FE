@@ -12,6 +12,7 @@ import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import EmojiPickerControl from '../components/EmojiPickerControl';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
@@ -486,6 +487,9 @@ const MessagesPage = () => {
               </Box>
               <IconButton aria-label="Find a connection to message" onClick={() => searchRef.current?.focus()}>
                 <EditNoteRoundedIcon />
+              </IconButton>
+              <IconButton aria-label="Open groups" onClick={() => navigate('/groups')}>
+                <GroupsRoundedIcon />
               </IconButton>
             </Stack>
             <Box sx={{ px: 1.5, pb: 1.25 }}>

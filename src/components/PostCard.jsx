@@ -393,6 +393,12 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
               />
             </Box>
           )}
+
+          {post.mediaType === 'video' && post.videoUrl && (
+            <Box sx={{ mt: 2, borderRadius: 2.5, overflow: 'hidden', bgcolor: '#05070b', border: (theme) => `1px solid ${theme.palette.divider}` }}>
+              <Box component="video" src={post.videoUrl} poster={post.videoThumbnail || undefined} controls playsInline preload="metadata" sx={{ display: 'block', width: '100%', maxHeight: 520 }} />
+            </Box>
+          )}
         </CardContent>
 
         {/* Counts Bar */}
