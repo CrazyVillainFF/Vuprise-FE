@@ -1,17 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { messageAPI, notificationAPI } from '../services/api';
+import { groupAPI, messageAPI, notificationAPI } from '../services/api';
 import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
 
 export const NotificationProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesByConversation, setUnreadMessagesByConversation] = useState({});
+  const [incomingToast, setIncomingToast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const hasLoadedNotifications = useRef(false);
+  const notificationSnapshot = useRef(null);
+  const unreadMessageSnapshot = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) {
@@ -19,6 +22,8 @@ export const NotificationProvider = ({ children }) => {
       setLoading(false);
       setNotifications([]);
       setUnreadCount(0);
+      setIncomingToast(null);
+      notificationSnapshot.current = null;
       setError('');
       return;
     }
@@ -27,7 +32,22 @@ export const NotificationProvider = ({ children }) => {
       if (!hasLoadedNotifications.current) setLoading(true);
       const res = await notificationAPI.getNotifications();
       if (res.data.success) {
-        setNotifications(res.data.notifications || []);
+        const nextNotifications = res.data.notifications || [];
+        const previousIds = notificationSnapshot.current;
+        if (previousIds) {
+          const newest = nextNotifications.find((item) => !item.read && !previousIds.has(String(item._id)));
+          if (newest) {
+            setIncomingToast({
+              id: `alert-${newest._id}`,
+              kind: 'alert',
+              title: newest.sender?.name || 'Vuprise',
+              body: newest.message || 'You have a new notification.',
+              avatar: newest.sender?.profilePicture || '',
+            });
+          }
+        }
+        notificationSnapshot.current = new Set(nextNotifications.map((item) => String(item._id)));
+        setNotifications(nextNotifications);
         setUnreadCount(res.data.unreadCount || 0);
         setError('');
         hasLoadedNotifications.current = true;
@@ -43,28 +63,78 @@ export const NotificationProvider = ({ children }) => {
   const fetchUnreadMessages = useCallback(async () => {
     if (!isAuthenticated) {
       setUnreadMessagesByConversation({});
+      unreadMessageSnapshot.current = null;
       return;
     }
     try {
-      const response = await messageAPI.getConversations();
-      const unread = Object.fromEntries((response.data.conversations || [])
-        .filter((conversation) => conversation.unreadCount > 0)
-        .map((conversation) => [String(conversation._id), conversation.unreadCount]));
+      const [response, groupResponse] = await Promise.all([
+        messageAPI.getConversations(),
+        groupAPI.list().catch(() => ({ data: { groups: [] } })),
+      ]);
+      const conversations = response.data.conversations || [];
+      const groups = groupResponse.data.groups || [];
+      const unread = Object.fromEntries([
+        ...conversations.map((conversation) => [String(conversation._id), conversation.unreadCount || 0]),
+        ...groups.map((group) => [`group:${group._id}`, group.unreadCount || 0]),
+      ]);
+      const previous = unreadMessageSnapshot.current;
+      if (previous) {
+        const incoming = [
+          ...conversations.filter((conversation) => (
+            conversation.unreadCount > (previous[String(conversation._id)] || 0) &&
+            String(conversation.lastMessage?.sender?._id || conversation.lastMessage?.sender || '') !== String(user?._id || '')
+          )).map((conversation) => ({
+            ...conversation,
+            senderName: conversation.peer?.name || 'New message',
+            toastTitle: conversation.peer?.name || 'New message',
+            toastBody: 'Sent you a message',
+          })),
+          ...groups.filter((group) => (
+            group.unreadCount > (previous[`group:${group._id}`] || 0) &&
+            String(group.lastMessage?.sender?._id || group.lastMessage?.sender || '') !== String(user?._id || '')
+          )).map((group) => ({
+            ...group,
+            _id: `group:${group._id}`,
+            toastTitle: group.lastMessage?.sender?.name || group.name || 'New group message',
+            toastBody: `New message in ${group.name || 'a group'}`,
+            toastAvatar: group.lastMessage?.sender?.profilePicture || group.photo || '',
+          })),
+        ]
+          .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
+        if (incoming.length) {
+          const newest = incoming[0];
+          const addedCount = incoming.reduce((total, conversation) => (
+            total + conversation.unreadCount - (previous[String(conversation._id)] || 0)
+          ), 0);
+          setIncomingToast({
+            id: `message-${newest._id}-${newest.lastMessage?._id || Date.now()}`,
+            kind: 'message',
+            title: newest.toastTitle,
+            body: addedCount > 1 ? `You have ${addedCount} new messages` : newest.toastBody,
+            avatar: newest.toastAvatar || newest.peer?.profilePicture || '',
+          });
+        }
+      }
+      unreadMessageSnapshot.current = unread;
       setUnreadMessagesByConversation(unread);
     } catch (err) {
       console.error('[Messages] Failed to load unread count:', err.message);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?._id]);
 
   const markConversationMessagesRead = useCallback((conversationId) => {
     setUnreadMessagesByConversation((current) => {
       const id = String(conversationId);
       if (!current[id]) return current;
-      const next = { ...current };
-      delete next[id];
-      return next;
+      return { ...current, [id]: 0 };
     });
   }, []);
+
+  const markGroupMessagesRead = useCallback((groupId) => {
+    setUnreadMessagesByConversation((current) => ({ ...current, [`group:${groupId}`]: 0 }));
+  }, []);
+
+  const dismissIncomingToast = useCallback(() => setIncomingToast(null), []);
 
   useEffect(() => {
     fetchNotifications();
@@ -142,12 +212,16 @@ export const NotificationProvider = ({ children }) => {
         notifications,
         unreadCount,
         unreadMessageCount,
+        unreadMessagesByConversation,
+        incomingToast,
+        dismissIncomingToast,
         loading,
         error,
         clearError: () => setError(''),
         fetchNotifications,
         fetchUnreadMessages,
         markConversationMessagesRead,
+        markGroupMessagesRead,
         markAsRead,
         markAllAsRead,
         deleteNotification

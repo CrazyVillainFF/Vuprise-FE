@@ -41,7 +41,7 @@ const formatConversationTime = (value) => {
 
 const MessagesPage = () => {
   const { user } = useAuth();
-  const { markConversationMessagesRead } = useNotifications();
+  const { markConversationMessagesRead, markGroupMessagesRead, unreadMessagesByConversation } = useNotifications();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const userId = user?._id;
@@ -525,6 +525,7 @@ const MessagesPage = () => {
   const openGroupConversation = (group) => {
     stopTyping();
     setError('');
+    markGroupMessagesRead(group._id);
     setAttachment(null);
     setActive(null);
     setMessages([]);
@@ -763,6 +764,7 @@ const MessagesPage = () => {
                       const groupSnippet = lastMessage?.deletedForEveryone ? 'This message was deleted' : lastMessage?.text || (lastMessage?.imageUrl ? 'Photo' : '');
                       const isGroupTyping = Object.keys(typingByScope[`group:${group._id}`] || {}).length > 0;
                       const groupPreview = isGroupTyping ? 'Typing…' : groupSnippet ? `${senderName}: ${groupSnippet}` : `${group.members?.length || 0} members`;
+                      const groupUnreadCount = unreadMessagesByConversation[`group:${group._id}`] ?? group.unreadCount ?? 0;
                       return (
                         <ListItem key={`group-${group._id}`} disablePadding>
                           <ListItemButton
@@ -782,6 +784,7 @@ const MessagesPage = () => {
                             />
                             <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
                               {item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}
+                              {groupUnreadCount > 0 && <Box component="span" aria-label={`${groupUnreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{groupUnreadCount > 99 ? '99+' : groupUnreadCount}</Box>}
                             </Stack>
                           </ListItemButton>
                         </ListItem>
@@ -789,6 +792,9 @@ const MessagesPage = () => {
                     }
                     const { contact, conversation } = item;
                     const hasMessages = Boolean(conversation?.lastMessage);
+                    const unreadCount = conversation
+                      ? (unreadMessagesByConversation[String(conversation._id)] ?? conversation.unreadCount ?? 0)
+                      : 0;
                     const isOwnLastMessage = String(conversation?.lastMessage?.sender) === String(user?._id);
                     const preview = hasMessages
                       ? (conversation.lastMessage.deletedForEveryone ? 'This message was deleted' : conversation.lastMessage.text || (conversation.lastMessage.imageUrl ? 'Photo' : (isOwnLastMessage ? 'You sent a message' : 'Message')))
@@ -843,6 +849,7 @@ const MessagesPage = () => {
                         <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
                           {['online', 'offline'].includes(presenceByUser[contact._id]) && <Typography variant="caption" color={presenceByUser[contact._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[contact._id] === 'online' ? 'Online' : 'Offline'}</Typography>}
                           {hasMessages && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(conversation.lastMessageAt || conversation.lastMessage.createdAt)}</Typography>}
+                          {unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}
                         </Stack>
                       </ListItemButton>
                       </ListItem>
