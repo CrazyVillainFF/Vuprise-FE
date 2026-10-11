@@ -16,12 +16,13 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import EmojiPickerControl from '../components/EmojiPickerControl';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { groupAPI, messageAPI } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
 import { decryptMessage, getDeviceKeyPair } from '../utils/e2ee';
 import { sortContactsByRecentConversations } from '../utils/messageInbox';
 import { getBrandedHeadline } from '../utils/brandCopy';
+import GroupChatPanel from './GroupChatPage';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
 const formatConversationTime = (value) => {
@@ -38,6 +39,7 @@ const MessagesPage = () => {
   const { user } = useAuth();
   const { markConversationMessagesRead } = useNotifications();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const userId = user?._id;
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -50,6 +52,7 @@ const MessagesPage = () => {
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [active, setActive] = useState(null);
+  const [activeGroup, setActiveGroup] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [privateKey, setPrivateKey] = useState(null);
@@ -81,6 +84,21 @@ const MessagesPage = () => {
   const openRequestId = useRef(0);
   const longPressTimer = useRef(null);
   const longPressTriggered = useRef(false);
+  const groupSelectionHandled = useRef('');
+
+  useEffect(() => {
+    const requestedGroupId = searchParams.get('group');
+    if (!requestedGroupId || loading || !groups.length) return;
+    if (groupSelectionHandled.current === requestedGroupId) return;
+    const matchingGroup = groups.find((group) => String(group._id) === String(requestedGroupId));
+    if (matchingGroup) {
+      groupSelectionHandled.current = requestedGroupId;
+      setActive(null);
+      setActiveGroup(matchingGroup);
+      selectedConversationId.current = null;
+      setMessages([]);
+    }
+  }, [groups, loading, searchParams]);
 
   const openChatActions = (contact, conversation, anchorEl, anchorPosition) => {
     if (!conversation) return;
@@ -367,6 +385,9 @@ const MessagesPage = () => {
   }, [messages.length]);
 
   const openConversation = useCallback(async (contact) => {
+    setActiveGroup(null);
+    groupSelectionHandled.current = '';
+    if (searchParams.has('group')) setSearchParams({}, { replace: true });
     const requestId = ++openRequestId.current;
     const cachedConversation = conversations.find((conversation) => String(conversation.peer?._id) === String(contact._id));
     if (cachedConversation) {
@@ -397,7 +418,23 @@ const MessagesPage = () => {
       if (requestId !== openRequestId.current) return;
       setError(openError.message || 'Could not open this conversation.');
     }
-  }, [active?._id, conversations]);
+  }, [active?._id, conversations, searchParams, setSearchParams]);
+
+  const openGroupConversation = (group) => {
+    setError('');
+    setActive(null);
+    setMessages([]);
+    selectedConversationId.current = null;
+    setActiveGroup(group);
+    groupSelectionHandled.current = String(group._id);
+    setSearchParams({ group: String(group._id) });
+  };
+
+  const closeGroupConversation = () => {
+    setActiveGroup(null);
+    groupSelectionHandled.current = '';
+    setSearchParams({}, { replace: true });
+  };
 
   const sendMessage = async (event) => {
     event.preventDefault();
@@ -518,7 +555,7 @@ const MessagesPage = () => {
 
   return (
     <Container maxWidth="xl" sx={{ minWidth: 0 }}>
-      {!active && (
+      {!active && !activeGroup && (
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2.5 }}>
           <ChatBubbleOutlineRoundedIcon color="primary" />
           <Box sx={{ minWidth: 0 }}>
@@ -541,17 +578,17 @@ const MessagesPage = () => {
         variant="outlined"
         sx={{
           display: 'grid',
-          gridTemplateColumns: mobile && active ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', md: '360px minmax(0, 1fr)' },
-          height: active
+          gridTemplateColumns: mobile && (active || activeGroup) ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', md: '360px minmax(0, 1fr)' },
+          height: active || activeGroup
             ? { xs: 'calc(100dvh - 155px)', md: 'calc(100dvh - 180px)' }
             : { xs: 'min(68dvh, 640px)', md: 'min(72dvh, 760px)' },
-          minHeight: active ? { xs: 420, md: 540 } : { xs: 400, md: 520 },
+          minHeight: active || activeGroup ? { xs: 420, md: 540 } : { xs: 400, md: 520 },
           overflow: 'hidden',
           borderRadius: 3,
           bgcolor: 'background.paper',
         }}
       >
-        {(!mobile || !active) && (
+        {(!mobile || (!active && !activeGroup)) && (
           <Box sx={{ borderRight: { md: 1 }, borderColor: 'divider', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: 2, py: 1.75 }}>
               <Avatar src={user?.profilePicture} alt="" sx={{ width: 38, height: 38 }}>{user?.name?.[0] || 'N'}</Avatar>
@@ -598,7 +635,8 @@ const MessagesPage = () => {
                       return (
                         <ListItem key={`group-${group._id}`} disablePadding>
                           <ListItemButton
-                            onClick={() => navigate(`/groups/${group._id}/messages`)}
+                            selected={String(activeGroup?._id) === String(group._id)}
+                            onClick={() => openGroupConversation(group)}
                             aria-label={`Open group chat ${group.name}`}
                             sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}
                           >
@@ -689,9 +727,16 @@ const MessagesPage = () => {
           </Box>
         )}
 
-        {(!mobile || active) && (
+        {(!mobile || active || activeGroup) && (
           <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
-            {active ? (
+            {activeGroup ? (
+              <GroupChatPanel
+                key={activeGroup._id}
+                groupId={activeGroup._id}
+                showBackButton={mobile}
+                onBack={closeGroupConversation}
+              />
+            ) : active ? (
               <>
                 <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
                   {mobile && <IconButton aria-label="Back to chats" onClick={() => { selectedConversationId.current = null; setActive(null); setMessages([]); }} size="small"><ArrowBackRoundedIcon /></IconButton>}

@@ -111,7 +111,7 @@ const NotificationsPage = () => {
       setActionError('');
       await groupAPI.respond(groupId, action);
       await Promise.all([markAsRead(item._id), fetchNotifications()]);
-      if (action === 'accept') navigate(`/groups/${groupId}/messages`);
+      if (action === 'accept') navigate(`/messages?group=${encodeURIComponent(groupId)}`);
     } catch (requestError) {
       setActionError(requestError.message || 'This group invitation could not be updated.');
       await fetchNotifications();

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Box, CircularProgress, useMediaQuery } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -29,7 +29,6 @@ import MessagesPage from './pages/MessagesPage';
 import PostDetailsPage from './pages/PostDetailsPage';
 import SatisfiedGamesPage from './pages/SatisfiedGamesPage';
 import SatisfiedGamesPrompt from './components/SatisfiedGamesPrompt';
-import GroupChatPage from './pages/GroupChatPage';
 
 const GhostCursor = React.lazy(() => import('./components/reactbits/GhostCursor'));
 
@@ -78,6 +77,11 @@ const RootRedirect = () => {
   return <LandingPage />;
 };
 
+const GroupConversationRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/messages?group=${encodeURIComponent(id)}`} replace />;
+};
+
 function App() {
   return (
     <ThemeContextProvider>
@@ -110,7 +114,7 @@ function App() {
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/groups" element={<Navigate to="/messages" replace />} />
-                <Route path="/groups/:id/messages" element={<GroupChatPage />} />
+                <Route path="/groups/:id/messages" element={<GroupConversationRedirect />} />
                 <Route path="/post/:id" element={<PostDetailsPage />} />
                 <Route path="/profile/:id" element={<ProfilePage />} />
                 <Route path="/profile/edit" element={<EditProfilePage />} />

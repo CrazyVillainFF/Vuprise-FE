@@ -181,15 +181,16 @@ test('isolated seeded account can sign in and protected pages survive direct loa
     const groupChatItem = page.getByRole('button', { name: `Open group chat ${groupName}` });
     await expect(groupChatItem).toBeVisible();
     await groupChatItem.click();
-    await expect(page).toHaveURL(/\/groups\/[^/]+\/messages$/);
+    await expect(page).toHaveURL(/\/messages\?group=/);
     await expect(page.getByText(groupName).first()).toBeVisible();
+    await expect(groupChatItem).toBeVisible();
 
     await page.getByRole('button', { name: 'Open profile menu' }).click();
     await page.getByRole('menuitem', { name: 'Sign Out' }).click();
     await page.getByRole('textbox', { name: 'Email Address' }).fill('marcus@nexora.io');
     await page.getByRole('textbox', { name: 'Password' }).fill('password123');
     await page.getByRole('button', { name: 'Sign In' }).click();
-    await expect(page).toHaveURL(/\/groups\/[^/]+\/messages$/);
+    await expect(page).toHaveURL(/\/messages$/);
     const inviteeCountry = page.getByRole('combobox', { name: 'Country' });
     await page.goto('/home');
     await expect(inviteeCountry).toBeVisible({ timeout: 10_000 });
@@ -204,8 +205,9 @@ test('isolated seeded account can sign in and protected pages survive direct loa
     const groupInvitation = page.getByRole('button', { name: `Accept invitation to ${groupName}` });
     await expect(groupInvitation).toBeVisible();
     await groupInvitation.click();
-    await expect(page).toHaveURL(/\/groups\/[^/]+\/messages$/);
+    await expect(page).toHaveURL(/\/messages\?group=/);
     await expect(page.getByText(groupName).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: `Open group chat ${groupName}` })).toBeVisible();
   }
 });
 

@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, CircularProgress, Container, IconButton, Paper,
+  Alert, Avatar, Box, Button, CircularProgress, IconButton, Paper,
   Skeleton, Stack, TextField, Typography
 } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
@@ -18,9 +17,7 @@ const formatTime = (value) => {
   return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
 };
 
-export default function GroupChatPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+export default function GroupChatPage({ groupId, onBack, showBackButton = false }) {
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -43,8 +40,8 @@ export default function GroupChatPage() {
     setError('');
     try {
       const [groupResponse, messageResponse] = await Promise.all([
-        groupAPI.get(id),
-        groupAPI.getMessages(id, { limit: PAGE_SIZE })
+        groupAPI.get(groupId),
+        groupAPI.getMessages(groupId, { limit: PAGE_SIZE })
       ]);
       setGroup(groupResponse.data.group);
       setMessages(messageResponse.data.messages || []);
@@ -53,7 +50,7 @@ export default function GroupChatPage() {
     } catch (loadError) {
       setError(loadError.message || 'Could not load this group conversation.');
     } finally { setLoading(false); }
-  }, [id]);
+  }, [groupId]);
 
   useEffect(() => { loadConversation(); }, [loadConversation]);
 
@@ -62,7 +59,7 @@ export default function GroupChatPage() {
     if (!last?._id || pollLock.current || document.visibilityState !== 'visible') return;
     pollLock.current = true;
     try {
-      const response = await groupAPI.getMessages(id, { after: last._id, limit: PAGE_SIZE });
+      const response = await groupAPI.getMessages(groupId, { after: last._id, limit: PAGE_SIZE });
       const incoming = response.data.messages || [];
       if (incoming.length) {
         const existing = new Set(messagesRef.current.map((message) => String(message._id)));
@@ -78,7 +75,7 @@ export default function GroupChatPage() {
         setError('You no longer have access to this group conversation.');
       } else setError('Could not refresh messages. We’ll try again shortly.');
     } finally { pollLock.current = false; }
-  }, [id]);
+  }, [groupId]);
 
   useEffect(() => {
     if (loading || !group) return undefined;
@@ -95,7 +92,7 @@ export default function GroupChatPage() {
     const container = scrollRef.current;
     const oldHeight = container?.scrollHeight || 0;
     try {
-      const response = await groupAPI.getMessages(id, { before: firstId, limit: PAGE_SIZE });
+      const response = await groupAPI.getMessages(groupId, { before: firstId, limit: PAGE_SIZE });
       const older = response.data.messages || [];
       setMessages((current) => [...older, ...current]);
       setHasOlder(older.length === PAGE_SIZE);
@@ -114,7 +111,7 @@ export default function GroupChatPage() {
     setSending(true);
     setError('');
     try {
-      const response = await groupAPI.sendMessage(id, submission);
+      const response = await groupAPI.sendMessage(groupId, submission);
       const saved = response.data.message;
       setMessages((current) => {
         const next = current.filter((message) => message.clientMessageId !== submission.clientMessageId);
@@ -140,10 +137,9 @@ export default function GroupChatPage() {
   };
 
   return (
-    <Container maxWidth="md" sx={{ px: { xs: 1.25, sm: 2 }, minWidth: 0 }}>
-      <Paper elevation={0} sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, height: { xs: 'calc(100dvh - 172px)', md: 'min(76dvh, 790px)' }, minHeight: { xs: 370, md: 540 }, border: 1, borderColor: 'divider', borderRadius: { xs: 2, sm: 3 }, bgcolor: 'background.paper' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, minHeight: 0, height: '100%', bgcolor: 'background.paper' }}>
         <Stack direction="row" alignItems="center" spacing={1.25} sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
-          <IconButton aria-label="Back to chats" onClick={() => navigate('/messages')}><ArrowBackRoundedIcon /></IconButton>
+          {showBackButton && <IconButton aria-label="Back to chats" onClick={onBack}><ArrowBackRoundedIcon /></IconButton>}
           <Avatar src={group?.photo} alt="" variant="rounded" sx={{ width: 42, height: 42, flexShrink: 0 }}>{group?.name?.[0] || <GroupsRoundedIcon />}</Avatar>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="subtitle1" fontWeight={750} noWrap>{group?.name || 'Group conversation'}</Typography>
@@ -151,7 +147,7 @@ export default function GroupChatPage() {
           </Box>
         </Stack>
 
-        {error && <Alert severity="error" sx={{ mx: 1.5, mt: 1.25 }} action={error.includes('no longer have access') ? <Button color="inherit" size="small" onClick={() => navigate('/messages')}>Chats</Button> : undefined}>{error}</Alert>}
+        {error && <Alert severity="error" sx={{ mx: 1.5, mt: 1.25 }} action={error.includes('no longer have access') && onBack ? <Button color="inherit" size="small" onClick={onBack}>Chats</Button> : undefined}>{error}</Alert>}
 
         <Box ref={scrollRef} sx={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1.2, px: { xs: 1.25, sm: 2.5 }, py: 1.5, bgcolor: 'background.default' }} aria-live="polite" aria-label="Group messages">
           {hasOlder && !loading && <Button size="small" onClick={loadOlder} disabled={loadingOlder} sx={{ alignSelf: 'center' }}>{loadingOlder ? <CircularProgress size={18} /> : 'Load older messages'}</Button>}
@@ -176,7 +172,6 @@ export default function GroupChatPage() {
           <Button type="submit" variant="contained" aria-label="Send group message" disabled={sending || loading || !draft.trim() || Boolean(failed)} sx={{ minWidth: 48, width: 48, height: 40, px: 0 }}>{sending ? <CircularProgress size={18} color="inherit" /> : <SendRoundedIcon />}</Button>
         </Box>
         {failed && <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, pb: 1 }}><Typography variant="caption" color="error.main">Unsent message kept here for retry.</Typography><Stack direction="row" spacing={0.5}><Button size="small" onClick={() => { setFailed(null); setDraft(''); draftRef.current = null; }}>Discard</Button><Button size="small" startIcon={<ReplayRoundedIcon />} disabled={sending} onClick={() => submitMessage(null, true)}>Retry</Button></Stack></Stack>}
-      </Paper>
-    </Container>
+      </Box>
   );
 }
