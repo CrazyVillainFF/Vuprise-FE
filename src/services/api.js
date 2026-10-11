@@ -132,7 +132,9 @@ export const groupAPI = {
   remove: (id, userId) => api.delete(`/groups/${id}/members/${userId}`),
   delete: (id) => api.delete(`/groups/${id}`),
   getMessages: (id, params = {}) => api.get(`/groups/${id}/messages`, { params }),
-  sendMessage: (id, data) => api.post(`/groups/${id}/messages`, data),
+  sendMessage: (id, data) => api.post(`/groups/${id}/messages`, data, { headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
+  updateMessage: (id, messageId, text) => api.put(`/groups/${id}/messages/${messageId}`, { text }),
+  deleteMessage: (id, messageId, scope) => api.delete(`/groups/${id}/messages/${messageId}`, { params: { scope } }),
 };
 
 // ================= NOTIFICATION APIs =================
@@ -154,9 +156,9 @@ export const messageAPI = {
   deleteConversation: (conversationId) => api.delete(`/messages/conversations/${conversationId}`),
   updateConversationName: (conversationId, name) => api.patch(`/messages/conversations/${conversationId}`, { name }),
   getMessages: (conversationId) => api.get(`/messages/conversations/${conversationId}/messages`),
-  deleteMessage: (conversationId, messageId) => api.delete(`/messages/conversations/${conversationId}/messages/${messageId}`),
+  deleteMessage: (conversationId, messageId, scope) => api.delete(`/messages/conversations/${conversationId}/messages/${messageId}`, { params: { scope } }),
   updateMessage: (conversationId, messageId, text) => api.put(`/messages/conversations/${conversationId}/messages/${messageId}`, { text }),
-  sendMessage: (conversationId, payload) => api.post(`/messages/conversations/${conversationId}/messages`, payload),
+  sendMessage: (conversationId, payload) => api.post(`/messages/conversations/${conversationId}/messages`, payload, { headers: payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
   syncLegacyMessages: (conversationId, messages) => api.post(`/messages/conversations/${conversationId}/messages/sync-legacy`, { messages }),
 };
 

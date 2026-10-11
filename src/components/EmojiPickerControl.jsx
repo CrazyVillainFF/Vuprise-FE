@@ -20,6 +20,7 @@ const EmojiPickerControl = ({ onSelect, disabled = false, label = 'Add emoji' })
       <Tooltip title="Add emoji">
         <span>
           <IconButton
+            type="button"
             aria-label={label}
             aria-haspopup="dialog"
             aria-expanded={Boolean(anchorEl)}

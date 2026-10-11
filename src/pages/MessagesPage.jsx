@@ -11,6 +11,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import EmojiPickerControl from '../components/EmojiPickerControl';
@@ -55,6 +56,8 @@ const MessagesPage = () => {
   const [activeGroup, setActiveGroup] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState('');
   const [privateKey, setPrivateKey] = useState(null);
   const [ownSigningPublicKey, setOwnSigningPublicKey] = useState('');
   const [backupPrompt, setBackupPrompt] = useState('');
@@ -85,6 +88,14 @@ const MessagesPage = () => {
   const longPressTimer = useRef(null);
   const longPressTriggered = useRef(false);
   const groupSelectionHandled = useRef('');
+  const imageInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!attachment) { setAttachmentPreview(''); return undefined; }
+    const objectUrl = URL.createObjectURL(attachment);
+    setAttachmentPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [attachment]);
 
   useEffect(() => {
     const requestedGroupId = searchParams.get('group');
@@ -219,14 +230,15 @@ const MessagesPage = () => {
     }
   };
 
-  const deleteMessage = async () => {
+  const deleteMessage = async (scope) => {
     if (!active || !messageToDelete) return;
     const conversationId = active._id;
     const messageId = messageToDelete._id;
     setMessageActionLoading(true);
     try {
-      await messageAPI.deleteMessage(conversationId, messageId);
-      setMessages((existing) => existing.filter((message) => String(message._id) !== String(messageId)));
+      const response = await messageAPI.deleteMessage(conversationId, messageId, scope);
+      if (scope === 'me') setMessages((existing) => existing.filter((message) => String(message._id) !== String(messageId)));
+      else setMessages((existing) => existing.map((message) => String(message._id) === String(messageId) ? response.data.message : message));
       setMessageToDelete(null);
       try {
         const response = await messageAPI.getConversations();
@@ -387,6 +399,7 @@ const MessagesPage = () => {
   const openConversation = useCallback(async (contact) => {
     setActiveGroup(null);
     groupSelectionHandled.current = '';
+    setAttachment(null);
     if (searchParams.has('group')) setSearchParams({}, { replace: true });
     const requestId = ++openRequestId.current;
     const cachedConversation = conversations.find((conversation) => String(conversation.peer?._id) === String(contact._id));
@@ -422,6 +435,7 @@ const MessagesPage = () => {
 
   const openGroupConversation = (group) => {
     setError('');
+    setAttachment(null);
     setActive(null);
     setMessages([]);
     selectedConversationId.current = null;
@@ -436,10 +450,18 @@ const MessagesPage = () => {
     setSearchParams({}, { replace: true });
   };
 
+  const updateGroupInInbox = useCallback((nextGroup) => {
+    setGroups((current) => current.map((group) => String(group._id) === String(nextGroup._id) ? nextGroup : group));
+  }, []);
+
+  const removeGroupFromInbox = useCallback((removedGroupId) => {
+    setGroups((current) => current.filter((group) => String(group._id) !== String(removedGroupId)));
+  }, []);
+
   const sendMessage = async (event) => {
     event.preventDefault();
-    const text = (composerInputRef.current?.value || draft).trim();
-    if (!text || !active || sending) return;
+    const text = (composerInputRef.current?.value ?? draft).trim();
+    if ((!text && !attachment) || !active || sending) return;
     const activeConversation = active;
     const previousConversation = conversations.find((conversation) => conversation._id === activeConversation._id);
     const temporaryId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -449,6 +471,7 @@ const MessagesPage = () => {
       conversation: activeConversation._id,
       sender: user._id,
       text,
+      imageUrl: attachmentPreview,
       createdAt: sentAt,
       readBy: [user._id],
       pending: true,
@@ -461,13 +484,19 @@ const MessagesPage = () => {
     setDraft('');
     if (composerInputRef.current) composerInputRef.current.value = '';
     setConversations((existing) => [
-      { _id: activeConversation._id, peer: activeConversation.peer, lastMessageAt: sentAt, lastMessage: { sender: user._id, text, createdAt: sentAt } },
+      { _id: activeConversation._id, peer: activeConversation.peer, lastMessageAt: sentAt, lastMessage: { sender: user._id, text: text || (attachment ? 'Photo' : ''), imageUrl: attachment ? attachmentPreview : '', createdAt: sentAt } },
       ...existing.filter((conversation) => conversation._id !== activeConversation._id)
     ]);
     try {
       setSending(true);
       setError('');
-      const response = await messageAPI.sendMessage(activeConversation._id, { text });
+      let payload = { text };
+      if (attachment) {
+        payload = new FormData();
+        payload.append('text', text);
+        payload.append('image', attachment);
+      }
+      const response = await messageAPI.sendMessage(activeConversation._id, payload);
       const savedMessage = response.data.message;
       if (selectedConversationId.current === activeConversation._id) setMessages((existing) => {
         const withoutPendingOrDuplicate = existing.filter((message) => (
@@ -475,6 +504,8 @@ const MessagesPage = () => {
         ));
         return [...withoutPendingOrDuplicate, savedMessage];
       });
+      setAttachment(null);
+      if (imageInputRef.current) imageInputRef.current.value = '';
     } catch (sendError) {
       if (selectedConversationId.current === activeConversation._id) {
         setMessages((existing) => existing.filter((message) => message._id !== temporaryId));
@@ -483,6 +514,7 @@ const MessagesPage = () => {
         ? [previousConversation, ...existing.filter((conversation) => conversation._id !== activeConversation._id)]
         : existing.filter((conversation) => conversation._id !== activeConversation._id));
       setDraft((current) => current ? `${text}\n${current}`.slice(0, 5000) : text);
+      setAttachment(attachment || null);
       setError(sendError.message || 'The message could not be sent.');
     } finally {
       setSending(false);
@@ -535,6 +567,23 @@ const MessagesPage = () => {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
+  };
+
+  const handleMessageImageSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setError('Choose a JPEG, PNG, WEBP, or GIF image.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Images must be 10 MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+    setError('');
+    setAttachment(file);
   };
 
   if (loading) {
@@ -631,7 +680,8 @@ const MessagesPage = () => {
                       const lastMessage = group.lastMessage;
                       const senderId = String(lastMessage?.sender?._id || lastMessage?.sender || '');
                       const senderName = senderId === String(user?._id) ? 'You' : lastMessage?.sender?.name || 'Member';
-                      const groupPreview = lastMessage?.text ? `${senderName}: ${lastMessage.text}` : `${group.members?.length || 0} members`;
+                      const groupSnippet = lastMessage?.deletedForEveryone ? 'This message was deleted' : lastMessage?.text || (lastMessage?.imageUrl ? 'Photo' : '');
+                      const groupPreview = groupSnippet ? `${senderName}: ${groupSnippet}` : `${group.members?.length || 0} members`;
                       return (
                         <ListItem key={`group-${group._id}`} disablePadding>
                           <ListItemButton
@@ -660,7 +710,7 @@ const MessagesPage = () => {
                     const hasMessages = Boolean(conversation?.lastMessage);
                     const isOwnLastMessage = String(conversation?.lastMessage?.sender) === String(user?._id);
                     const preview = hasMessages
-                      ? (conversation.lastMessage.text || (isOwnLastMessage ? 'You sent a message' : 'Message'))
+                      ? (conversation.lastMessage.deletedForEveryone ? 'This message was deleted' : conversation.lastMessage.text || (conversation.lastMessage.imageUrl ? 'Photo' : (isOwnLastMessage ? 'You sent a message' : 'Message')))
                       : (getBrandedHeadline(contact.headline) || 'Start a conversation');
                     return (
                       <ListItem
@@ -735,6 +785,8 @@ const MessagesPage = () => {
                 groupId={activeGroup._id}
                 showBackButton={mobile}
                 onBack={closeGroupConversation}
+                onGroupUpdate={updateGroupInInbox}
+                onGroupRemoved={removeGroupFromInbox}
               />
             ) : active ? (
               <>
@@ -759,20 +811,24 @@ const MessagesPage = () => {
                   {messages.map((message) => {
                     const ownMessage = message.sender.toString() === user._id.toString();
                     const readByPeer = message.readBy?.some((id) => id.toString() === active.peer._id.toString());
+                    const removedForEveryone = message.deletedForEveryone;
                     return (
                       <Box key={message._id} sx={{ alignSelf: ownMessage ? 'flex-end' : 'flex-start', maxWidth: 'min(90%, 560px)', minWidth: 0 }}>
                         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: ownMessage ? 'flex-end' : 'flex-start' }}>
                           <Paper elevation={0} sx={{ px: 1.5, py: 1.1, borderRadius: 2.5, bgcolor: ownMessage ? 'primary.main' : 'action.hover', color: ownMessage ? 'primary.contrastText' : 'text.primary', overflowWrap: 'anywhere' }}>
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography>
+                            {removedForEveryone ? <Typography variant="body2" fontStyle="italic" color="text.secondary">This message was deleted</Typography> : <>
+                              {message.imageUrl && <Box component="img" src={message.imageUrl} alt="Image shared in chat" loading="lazy" sx={{ display: 'block', width: 'min(100%, 360px)', maxHeight: 360, objectFit: 'contain', borderRadius: 1.5, mb: message.text ? 0.8 : 0 }} />}
+                              {message.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography>}
+                            </>}
                           </Paper>
                         </Box>
                         <Stack direction="row" spacing={0.25} alignItems="center" justifyContent={ownMessage ? 'flex-end' : 'flex-start'} sx={{ mt: 0.25 }}>
                           <Typography variant="caption" color="text.secondary">
                             {formatTimestamp(message.createdAt)}{message.editedAt ? ' · Edited' : ''}{ownMessage ? ` · ${message.pending ? 'Sending…' : readByPeer ? 'Read' : 'Sent'}` : ''}
                           </Typography>
-                          {ownMessage && !message.pending && (
+                          {!message.pending && (
                             <>
-                              {!message.ciphertext && typeof message.text === 'string' && <IconButton size="small" aria-label="Edit message" onClick={() => { setMessageToEdit(message); setMessageEditDraft(message.text || ''); }} sx={{ p: 0.35 }}><EditRoundedIcon sx={{ fontSize: 17 }} /></IconButton>}
+                              {ownMessage && !removedForEveryone && !message.ciphertext && typeof message.text === 'string' && Boolean(message.text) && <IconButton size="small" aria-label="Edit message" onClick={() => { setMessageToEdit(message); setMessageEditDraft(message.text || ''); }} sx={{ p: 0.35 }}><EditRoundedIcon sx={{ fontSize: 17 }} /></IconButton>}
                               <IconButton size="small" aria-label="Delete message" onClick={() => setMessageToDelete(message)} sx={{ p: 0.35, color: 'error.light' }}><DeleteOutlineRoundedIcon sx={{ fontSize: 17 }} /></IconButton>
                             </>
                           )}
@@ -782,7 +838,10 @@ const MessagesPage = () => {
                   })}
                   <div ref={bottomRef} />
                 </Box>
-                <Box component="form" onSubmit={sendMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
+                {attachment && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={attachmentPreview} alt="Image preview" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
+                <Box component="form" onSubmit={sendMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: attachment ? 0 : 1, borderColor: 'divider', display: 'flex', gap: 0.5, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
+                  <input ref={imageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleMessageImageSelect} aria-label="Attach an image" />
+                  <IconButton aria-label="Attach image" onClick={() => imageInputRef.current?.click()} disabled={sending}><AttachFileRoundedIcon /></IconButton>
                   <EmojiPickerControl
                     disabled={sending}
                     onSelect={(emoji) => setDraft((current) => `${current}${emoji}`.slice(0, 5000))}
@@ -798,7 +857,7 @@ const MessagesPage = () => {
                     slotProps={{ htmlInput: { maxLength: 5000, name: 'message' } }}
                     placeholder="Write a message..."
                   />
-                  <Button type="submit" variant="contained" aria-label="Send message" disabled={sending} sx={{ minWidth: 48, width: 48, height: 40, px: 0 }}>
+                  <Button type="submit" variant="contained" aria-label="Send message" disabled={sending || (!draft.trim() && !attachment)} sx={{ minWidth: 48, width: 48, height: 40, px: 0 }}>
                     {sending ? <CircularProgress size={18} color="inherit" /> : <SendRoundedIcon />}
                   </Button>
                 </Box>
@@ -862,10 +921,11 @@ const MessagesPage = () => {
       </Dialog>
       <Dialog open={Boolean(messageToDelete)} onClose={() => !messageActionLoading && setMessageToDelete(null)} fullWidth maxWidth="xs">
         <DialogTitle>Delete this message?</DialogTitle>
-        <DialogContent><Typography color="text.secondary">This removes your message from the conversation for both people.</Typography></DialogContent>
-        <DialogActions>
+        <DialogContent><Typography color="text.secondary">Choose who should no longer see this message.</Typography></DialogContent>
+        <DialogActions sx={{ flexWrap: 'wrap' }}>
           <Button onClick={() => setMessageToDelete(null)} disabled={messageActionLoading}>Cancel</Button>
-          <Button color="error" onClick={deleteMessage} disabled={messageActionLoading}>{messageActionLoading ? 'Deleting…' : 'Delete'}</Button>
+          <Button onClick={() => deleteMessage('me')} disabled={messageActionLoading}>{messageActionLoading ? 'Deleting…' : 'Delete for me'}</Button>
+          {String(messageToDelete?.sender?._id || messageToDelete?.sender) === String(user?._id) && <Button color="error" onClick={() => deleteMessage('everyone')} disabled={messageActionLoading}>Delete for everyone</Button>}
         </DialogActions>
       </Dialog>
       <Dialog open={groupDialogOpen} onClose={closeGroupDialog} fullWidth maxWidth="sm" aria-labelledby="create-group-title">
