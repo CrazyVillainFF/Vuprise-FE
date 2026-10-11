@@ -588,7 +588,13 @@ const ProfilePage = () => {
       <Menu anchorEl={accountMenuAnchor} open={Boolean(accountMenuAnchor)} onClose={() => setAccountMenuAnchor(null)}>
         {profile.isBlockedByViewer
           ? <MenuItem onClick={handleUnblockAccount} disabled={blockActionLoading}>Unblock {profile.name}</MenuItem>
-          : <MenuItem onClick={() => { setAccountMenuAnchor(null); setBlockDialogOpen(true); }} disabled={blockActionLoading}>Block {profile.name}</MenuItem>}
+          : <MenuItem
+            onClick={() => { setAccountMenuAnchor(null); setBlockDialogOpen(true); }}
+            disabled={blockActionLoading}
+            sx={{ color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'error.contrastText' } }}
+          >
+            Block {profile.name}
+          </MenuItem>}
       </Menu>
       <Dialog open={blockDialogOpen} onClose={() => !blockActionLoading && setBlockDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Block “{profile.name}”?</DialogTitle>
