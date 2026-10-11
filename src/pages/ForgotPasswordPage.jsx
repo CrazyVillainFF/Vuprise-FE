@@ -12,8 +12,8 @@ const ForgotPasswordPage = () => {
     event.preventDefault(); setBusy(true); setError(''); setMessage('');
     try {
       if (step === 'request') {
-        const response = await authAPI.requestPasswordReset(email.trim());
-        setMessage(response.data.message); setStep('code');
+        await authAPI.requestPasswordReset(email.trim());
+        setStep('code');
       } else {
         const response = await authAPI.completePasswordReset({ email: email.trim(), code, newPassword, confirmPassword });
         setMessage(response.data.message); setStep('complete');
