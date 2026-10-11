@@ -89,6 +89,8 @@ export const postAPI = {
       headers: { ...(config.headers || {}), ...(isFormData ? { 'Content-Type': 'multipart/form-data' } : {}) },
     });
   },
+  signVideoUpload: (data, config = {}) => api.post('/posts/video-upload/sign', data, config),
+  completeVideoUpload: (data, config = {}) => api.post('/posts/video-upload/complete', data, config),
   getFeed: (params) => api.get('/posts/feed', { params }),
   getUserPosts: (userId, params) => api.get(`/posts/user/${userId}`, { params }),
   getPostById: (id) => api.get(`/posts/${id}`),

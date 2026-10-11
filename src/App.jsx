@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Box, CircularProgress, useMediaQuery } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { PublishingProvider } from './context/PublishingContext';
+import PublishingStatusPill from './components/PublishingStatusPill';
 import { ThemeContextProvider } from './theme/ThemeContext';
 import { useThemeMode } from './theme/ThemeContext';
 
@@ -80,6 +82,7 @@ function App() {
   return (
     <ThemeContextProvider>
       <AuthProvider>
+        <PublishingProvider>
         <NotificationProvider>
           <BrowserRouter>
             <Routes>
@@ -119,8 +122,10 @@ function App() {
             </Routes>
             <GlobalGhostCursor />
             <SatisfiedGamesPrompt />
+            <PublishingStatusPill />
           </BrowserRouter>
         </NotificationProvider>
+        </PublishingProvider>
       </AuthProvider>
     </ThemeContextProvider>
   );
