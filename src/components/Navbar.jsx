@@ -22,7 +22,6 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
@@ -60,7 +59,6 @@ const Navbar = () => {
     { label: 'Feed', path: '/home', icon: HomeRoundedIcon },
     { label: 'Message', path: '/messages', icon: ChatBubbleOutlineRoundedIcon, badge: unreadMessageCount },
     { label: 'Network', path: '/people', icon: PeopleAltRoundedIcon },
-    { label: 'Groups', path: '/groups', icon: GroupsRoundedIcon },
     {
       label: 'Notifications',
       path: '/notifications',

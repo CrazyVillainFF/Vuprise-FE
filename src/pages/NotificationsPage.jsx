@@ -23,7 +23,8 @@ import PersonAddRoundedIcon from '@mui/icons-material/PersonAddRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import { connectionAPI } from '../services/api';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import { connectionAPI, groupAPI } from '../services/api';
 
 import { useNotifications } from '../context/NotificationContext';
 import { formatTimeAgo } from '../utils/formatters';
@@ -78,12 +79,15 @@ const NotificationsPage = () => {
         return <PersonAddRoundedIcon sx={{ fontSize: 16, color: '#6366F1' }} />;
       case 'connection_accepted':
         return <CheckCircleRoundedIcon sx={{ fontSize: 16, color: '#10B981' }} />;
+      case 'group_invitation':
+        return <GroupsRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />;
       default:
         return <NotificationsActiveOutlinedIcon sx={{ fontSize: 16, color: 'primary.main' }} />;
     }
   };
 
   const handleNotificationClick = (item) => {
+    if (item.type === 'group_invitation') return;
     if (!item.read) {
       markAsRead(item._id);
     }
@@ -95,6 +99,24 @@ const NotificationsPage = () => {
       }
     } else if (item.post) {
       navigate(item.post?._id ? `/post/${item.post._id}` : '/home');
+    }
+  };
+
+  const handleGroupInvitation = async (event, item, action) => {
+    event.stopPropagation();
+    const groupId = item.group?._id || item.group;
+    if (!groupId || loadingRequestId) return;
+    try {
+      setLoadingRequestId(item._id);
+      setActionError('');
+      await groupAPI.respond(groupId, action);
+      await Promise.all([markAsRead(item._id), fetchNotifications()]);
+      if (action === 'accept') navigate(`/groups/${groupId}/messages`);
+    } catch (requestError) {
+      setActionError(requestError.message || 'This group invitation could not be updated.');
+      await fetchNotifications();
+    } finally {
+      setLoadingRequestId('');
     }
   };
 
@@ -248,6 +270,21 @@ const NotificationsPage = () => {
                             {pending ? <CircularProgress size={16} color="inherit" /> : 'Accept'}
                           </Button>
                           <Button size="small" variant="outlined" color="inherit" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleConnectionRequest(event, item, requestId, 'decline')} aria-label={`Decline connection request from ${sender.name || 'member'}`}>
+                            Decline
+                          </Button>
+                        </React.Fragment>
+                      );
+                    })()}
+                    {item.type === 'group_invitation' && (() => {
+                      const groupId = item.group?._id || item.group;
+                      if (!groupId || item.read) return null;
+                      const pending = loadingRequestId === item._id;
+                      return (
+                        <React.Fragment key={`group-invite-actions-${item._id}`}>
+                          <Button size="small" variant="contained" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleGroupInvitation(event, item, 'accept')} aria-label={`Accept invitation to ${item.group?.name || 'group'}`}>
+                            {pending ? <CircularProgress size={16} color="inherit" /> : 'Accept'}
+                          </Button>
+                          <Button size="small" variant="outlined" color="inherit" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleGroupInvitation(event, item, 'decline')} aria-label={`Decline invitation to ${item.group?.name || 'group'}`}>
                             Decline
                           </Button>
                         </React.Fragment>

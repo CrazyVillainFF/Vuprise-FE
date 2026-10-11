@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, InputAdornment, List,
+  Alert, Avatar, Box, Button, Checkbox, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, InputAdornment, List,
   ListItem, ListItemButton, ListItemAvatar, ListItemText, Menu, MenuItem, Paper, Skeleton, Stack, TextField,
   Typography, useMediaQuery
 } from '@mui/material';
@@ -17,7 +17,7 @@ import EmojiPickerControl from '../components/EmojiPickerControl';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { messageAPI } from '../services/api';
+import { groupAPI, messageAPI } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
 import { decryptMessage, getDeviceKeyPair } from '../utils/e2ee';
 import { sortContactsByRecentConversations } from '../utils/messageInbox';
@@ -43,6 +43,12 @@ const MessagesPage = () => {
   const mobile = useMediaQuery(theme.breakpoints.down('md'));
   const [contacts, setContacts] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [groupAboutDraft, setGroupAboutDraft] = useState('');
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -53,6 +59,7 @@ const MessagesPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [chatMenu, setChatMenu] = useState(null);
   const [chatToEdit, setChatToEdit] = useState(null);
@@ -131,6 +138,39 @@ const MessagesPage = () => {
       setError(actionError.message || 'Could not delete this chat.');
     } finally {
       setChatActionLoading(false);
+    }
+  };
+
+  const closeGroupDialog = () => {
+    if (creatingGroup) return;
+    setGroupDialogOpen(false);
+    setGroupNameDraft('');
+    setGroupAboutDraft('');
+    setSelectedGroupMembers([]);
+  };
+
+  const createGroup = async (event) => {
+    event.preventDefault();
+    if (selectedGroupMembers.length < 2) return;
+    setCreatingGroup(true);
+    setError('');
+    try {
+      const response = await groupAPI.create({
+        name: groupNameDraft.trim(),
+        about: groupAboutDraft.trim(),
+        memberIds: selectedGroupMembers,
+      });
+      const createdGroup = response.data.group;
+      setGroups((existing) => [createdGroup, ...existing.filter((group) => String(group._id) !== String(createdGroup._id))]);
+      setNotice('Group created. Invitations were sent to the selected connections.');
+      setGroupDialogOpen(false);
+      setGroupNameDraft('');
+      setGroupAboutDraft('');
+      setSelectedGroupMembers([]);
+    } catch (createError) {
+      setError(createError.message || 'Could not create the group. Please try again.');
+    } finally {
+      setCreatingGroup(false);
     }
   };
 
@@ -251,14 +291,16 @@ const MessagesPage = () => {
       try {
         setLoading(true);
         setError('');
-        const [contactResponse, conversationResponse] = await Promise.all([
+        const [contactResponse, conversationResponse, groupResponse] = await Promise.all([
           messageAPI.getContacts(),
-          messageAPI.getConversations()
+          messageAPI.getConversations(),
+          groupAPI.list().catch(() => ({ data: { groups: [] } }))
         ]);
         if (cancelled) return;
         const nextContacts = contactResponse.data.contacts || [];
         setContacts(nextContacts);
         setConversations(conversationResponse.data.conversations || []);
+        setGroups(groupResponse.data.groups || []);
 
         // Try the old local key only to display legacy encrypted history. New chats do not use it.
         let devicePairForPrompt = null;
@@ -420,6 +462,37 @@ const MessagesPage = () => {
     return orderedContacts.filter((contact) => `${contact.name || ''} ${contact.headline || ''}`.toLocaleLowerCase().includes(query));
   }, [orderedContacts, search]);
 
+  const filteredGroups = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    const matching = query
+      ? groups.filter((group) => `${group.name || ''} ${group.about || ''}`.toLocaleLowerCase().includes(query))
+      : groups;
+    return matching.map((group, index) => ({ group, index }))
+      .sort((a, b) => {
+        const aTime = new Date(a.group.lastMessageAt || a.group.updatedAt || 0).getTime();
+        const bTime = new Date(b.group.lastMessageAt || b.group.updatedAt || 0).getTime();
+        return bTime - aTime || a.index - b.index;
+      })
+      .map(({ group }) => group);
+  }, [groups, search]);
+
+  const chatItems = useMemo(() => {
+    const privateItems = filteredContacts.map((contact, index) => {
+      const conversation = conversations.find((item) => String(item.peer?._id) === String(contact._id));
+      return { type: 'private', contact, conversation, index, activity: conversation?.lastMessageAt || conversation?.lastMessage?.createdAt || null };
+    });
+    const groupItems = filteredGroups.map((group, index) => ({
+      type: 'group', group, index,
+      activity: group.lastMessageAt || group.lastMessage?.createdAt || group.updatedAt || null,
+    }));
+    return [...privateItems, ...groupItems].sort((a, b) => {
+      if (!a.activity && !b.activity) return a.type === b.type ? a.index - b.index : a.type === 'group' ? -1 : 1;
+      if (!a.activity) return 1;
+      if (!b.activity) return -1;
+      return new Date(b.activity).getTime() - new Date(a.activity).getTime();
+    });
+  }, [conversations, filteredContacts, filteredGroups]);
+
   const handleComposerKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
@@ -455,7 +528,8 @@ const MessagesPage = () => {
         </Stack>
       )}
 
-      {error && <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+      {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice('')}>{notice}</Alert>}
       {backupPrompt && (
         <Alert
           severity="info"
@@ -488,7 +562,7 @@ const MessagesPage = () => {
               <IconButton aria-label="Find a connection to message" onClick={() => searchRef.current?.focus()}>
                 <EditNoteRoundedIcon />
               </IconButton>
-              <IconButton aria-label="Open groups" onClick={() => navigate('/groups')}>
+              <IconButton aria-label="Create group" onClick={() => { setError(''); setGroupDialogOpen(true); }}>
                 <GroupsRoundedIcon />
               </IconButton>
             </Stack>
@@ -509,13 +583,42 @@ const MessagesPage = () => {
             <Divider />
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, py: 1.5 }}>
               <Typography variant="subtitle2" fontWeight={750}>Chats</Typography>
-              <Typography variant="caption" color="text.secondary">{filteredContacts.length} {filteredContacts.length === 1 ? 'connection' : 'connections'}</Typography>
+              <Typography variant="caption" color="text.secondary">{chatItems.length} {chatItems.length === 1 ? 'chat' : 'chats'}</Typography>
             </Stack>
             <Box sx={{ minHeight: 0, overflowY: 'auto', flex: 1 }}>
-              {filteredContacts.length ? (
+              {chatItems.length ? (
                 <List disablePadding>
-                  {filteredContacts.map((contact) => {
-                    const conversation = conversations.find((item) => String(item.peer?._id) === String(contact._id));
+                  {chatItems.map((item) => {
+                    if (item.type === 'group') {
+                      const { group } = item;
+                      const lastMessage = group.lastMessage;
+                      const senderId = String(lastMessage?.sender?._id || lastMessage?.sender || '');
+                      const senderName = senderId === String(user?._id) ? 'You' : lastMessage?.sender?.name || 'Member';
+                      const groupPreview = lastMessage?.text ? `${senderName}: ${lastMessage.text}` : `${group.members?.length || 0} members`;
+                      return (
+                        <ListItem key={`group-${group._id}`} disablePadding>
+                          <ListItemButton
+                            onClick={() => navigate(`/groups/${group._id}/messages`)}
+                            aria-label={`Open group chat ${group.name}`}
+                            sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}
+                          >
+                            <ListItemAvatar sx={{ minWidth: 62 }}>
+                              <Avatar src={group.photo || undefined} alt="" sx={{ width: 50, height: 50, borderRadius: 2 }}>{group.name?.[0] || <GroupsRoundedIcon />}</Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={group.name || 'Group chat'}
+                              secondary={groupPreview}
+                              primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
+                              secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
+                            />
+                            <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
+                              {item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}
+                            </Stack>
+                          </ListItemButton>
+                        </ListItem>
+                      );
+                    }
+                    const { contact, conversation } = item;
                     const hasMessages = Boolean(conversation?.lastMessage);
                     const isOwnLastMessage = String(conversation?.lastMessage?.sender) === String(user?._id);
                     const preview = hasMessages
@@ -523,7 +626,7 @@ const MessagesPage = () => {
                       : (getBrandedHeadline(contact.headline) || 'Start a conversation');
                     return (
                       <ListItem
-                        key={contact._id}
+                      key={`contact-${contact._id}`}
                         disablePadding
                         secondaryAction={conversation ? (
                           <IconButton
@@ -578,7 +681,7 @@ const MessagesPage = () => {
                 <Stack alignItems="center" justifyContent="center" sx={{ px: 3, py: 5, textAlign: 'center' }}>
                   <Typography fontWeight={700}>{contacts.length ? 'No matches' : 'No chats yet'}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {contacts.length ? 'Try a different name or headline.' : 'Accepted connections will appear here when you are ready to message.'}
+                    {contacts.length || groups.length ? 'Try a different name.' : 'Accepted connections and group chats will appear here.'}
                   </Typography>
                 </Stack>
               )}
@@ -719,6 +822,80 @@ const MessagesPage = () => {
           <Button onClick={() => setMessageToDelete(null)} disabled={messageActionLoading}>Cancel</Button>
           <Button color="error" onClick={deleteMessage} disabled={messageActionLoading}>{messageActionLoading ? 'Deleting…' : 'Delete'}</Button>
         </DialogActions>
+      </Dialog>
+      <Dialog open={groupDialogOpen} onClose={closeGroupDialog} fullWidth maxWidth="sm" aria-labelledby="create-group-title">
+        <Box component="form" onSubmit={createGroup}>
+          <DialogTitle id="create-group-title">Create a group</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <TextField
+                autoFocus
+                fullWidth
+                required
+                label="Group name"
+                value={groupNameDraft}
+                onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 80))}
+                slotProps={{ htmlInput: { minLength: 2, maxLength: 80 } }}
+              />
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                label="About group"
+                value={groupAboutDraft}
+                onChange={(event) => setGroupAboutDraft(event.target.value.slice(0, 1000))}
+                slotProps={{ htmlInput: { maxLength: 1000 } }}
+              />
+              <Box>
+                <Typography variant="subtitle2" fontWeight={750}>Add connected people</Typography>
+                <Typography variant="caption" color="text.secondary">Select at least 2 people. Only your accepted connections can be invited.</Typography>
+                <Paper variant="outlined" sx={{ mt: 1, maxHeight: 280, overflowY: 'auto', borderRadius: 2 }}>
+                  {contacts.length ? contacts.map((person) => {
+                    const selected = selectedGroupMembers.includes(String(person._id));
+                    return (
+                      <Box key={person._id} sx={{ px: 1.25, borderBottom: 1, borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}>
+                        <FormControlLabel
+                          sx={{ m: 0, width: '100%', minHeight: 58 }}
+                          control={(
+                            <Checkbox
+                              checked={selected}
+                              onChange={(event) => setSelectedGroupMembers((current) => (
+                                event.target.checked
+                                  ? [...current, String(person._id)]
+                                  : current.filter((id) => id !== String(person._id))
+                              ))}
+                              slotProps={{ input: { 'aria-label': `Add ${person.name} to group` } }}
+                            />
+                          )}
+                          label={(
+                            <Stack direction="row" spacing={1.25} alignItems="center">
+                              <Avatar src={person.profilePicture} alt="" sx={{ width: 34, height: 34 }}>{person.name?.[0] || '?'}</Avatar>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" fontWeight={650} noWrap>{person.name || 'Vuprise member'}</Typography>
+                                <Typography variant="caption" color="text.secondary" noWrap>{getBrandedHeadline(person.headline) || 'Connected'}</Typography>
+                              </Box>
+                            </Stack>
+                          )}
+                        />
+                      </Box>
+                    );
+                  }) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>You need accepted connections before creating a group.</Typography>
+                  )}
+                </Paper>
+                <Typography variant="caption" color={selectedGroupMembers.length >= 2 ? 'success.main' : 'text.secondary'} sx={{ display: 'block', mt: 0.75 }}>
+                  {selectedGroupMembers.length} selected. You will also be in the group.
+                </Typography>
+              </Box>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={closeGroupDialog} disabled={creatingGroup}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={creatingGroup || groupNameDraft.trim().length < 2 || selectedGroupMembers.length < 2}>
+              {creatingGroup ? <CircularProgress size={18} color="inherit" /> : 'Create group'}
+            </Button>
+          </DialogActions>
+        </Box>
       </Dialog>
     </Container>
   );

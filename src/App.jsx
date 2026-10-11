@@ -29,7 +29,7 @@ import MessagesPage from './pages/MessagesPage';
 import PostDetailsPage from './pages/PostDetailsPage';
 import SatisfiedGamesPage from './pages/SatisfiedGamesPage';
 import SatisfiedGamesPrompt from './components/SatisfiedGamesPrompt';
-import GroupsPage from './pages/GroupsPage';
+import GroupChatPage from './pages/GroupChatPage';
 
 const GhostCursor = React.lazy(() => import('./components/reactbits/GhostCursor'));
 
@@ -109,7 +109,8 @@ function App() {
               >
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/messages" element={<MessagesPage />} />
-                <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/groups" element={<Navigate to="/messages" replace />} />
+                <Route path="/groups/:id/messages" element={<GroupChatPage />} />
                 <Route path="/post/:id" element={<PostDetailsPage />} />
                 <Route path="/profile/:id" element={<ProfilePage />} />
                 <Route path="/profile/edit" element={<EditProfilePage />} />

@@ -1,19 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Box, Button, Dialog, DialogContent, IconButton, Stack, Typography,
-} from '@mui/material';
+import { Button, IconButton, Paper, Slide, Snackbar, Stack } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import GameArtwork from './games/GameArtwork';
 
 const STORAGE_KEY = 'vuprise.satisfied-games.prompt-seen.v1';
-const previews = [
-  { title: 'Binary Orbits', game: 'binary-orbits' },
-  { title: 'Shatter Type', game: 'shatter-type' },
-  { title: 'Stardust Cursor', game: 'stardust-cursor' },
-];
 
 const SatisfiedGamesPrompt = () => {
   const { loading, welcomeMessage, isAuthenticated } = useAuth();
@@ -37,29 +29,67 @@ const SatisfiedGamesPrompt = () => {
     try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* no-op */ }
   };
 
+  const explore = () => {
+    close();
+    navigate('/satisfied-games');
+  };
+
   return (
-    <Dialog open={open} onClose={close} aria-labelledby="satisfied-games-prompt-title" maxWidth="sm" fullWidth PaperProps={{ sx: { overflow: 'hidden', bgcolor: 'background.paper' } }}>
-      <IconButton onClick={close} aria-label="Close game invitation" sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1, bgcolor: 'rgba(10,16,24,.72)' }}>
-        <CloseRoundedIcon />
-      </IconButton>
-      <DialogContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-        <Stack direction="row" spacing={1} alignItems="center" color="primary.main" sx={{ mb: 0.5 }}>
-          <SportsEsportsRoundedIcon fontSize="small" />
-          <Typography variant="overline" fontWeight={750}>A quick break</Typography>
+    <Snackbar
+      open={open}
+      onClose={close}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      slots={{ transition: Slide }}
+      slotProps={{ transition: { direction: 'up' } }}
+      sx={{
+        bottom: { xs: isAuthenticated ? '88px !important' : '20px !important', sm: '24px !important' },
+        right: { xs: '12px !important', sm: '24px !important' },
+        left: { xs: '12px !important', sm: 'auto !important' },
+        '& .MuiSnackbarContent-root': { width: '100%' },
+      }}
+    >
+      <Paper
+        role="status"
+        aria-live="polite"
+        elevation={0}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: { xs: '100%', sm: 'auto' },
+          maxWidth: 340,
+          p: 0.75,
+          borderRadius: 999,
+          color: 'text.primary',
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: '0 10px 32px rgba(0, 0, 0, 0.22)',
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={0.25}>
+          <Button
+            onClick={explore}
+            endIcon={<ArrowForwardRoundedIcon />}
+            aria-label="Explore Satisfied Games"
+            sx={{
+              minHeight: 44,
+              px: 2,
+              borderRadius: 999,
+              color: 'primary.main',
+              fontWeight: 750,
+              whiteSpace: 'nowrap',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            Explore Satisfied Games
+          </Button>
+          <IconButton onClick={close} aria-label="Dismiss game notification" size="small" sx={{ ml: 0.25 }}>
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
         </Stack>
-        <Typography id="satisfied-games-prompt-title" variant="h5" fontWeight={800}>Try Satisfied Games</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1.6 }}>Explore a few playful visual experiments, made to try on any screen.</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1 }}>
-          {previews.map((item) => <Box key={item.title} sx={{ minWidth: 0 }}>
-            <GameArtwork game={item.game} compact />
-            <Typography variant="caption" fontWeight={700} noWrap display="block" sx={{ mt: 0.6 }}>{item.title}</Typography>
-          </Box>)}
-        </Box>
-        <Button fullWidth variant="contained" size="large" onClick={() => { close(); navigate('/satisfied-games'); }} sx={{ mt: 2 }}>
-          Explore games
-        </Button>
-      </DialogContent>
-    </Dialog>
+      </Paper>
+    </Snackbar>
   );
 };
 

@@ -27,6 +27,22 @@ test('public routes render without uncaught errors or failed local assets', asyn
   expect(failedLocalRequests).toEqual([]);
 });
 
+test('satisfied games invitation is a compact dismissible notification', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.removeItem('vuprise.satisfied-games.prompt-seen.v1'));
+  await page.reload();
+
+  const explore = page.getByRole('button', { name: 'Explore Satisfied Games' });
+  await expect(explore).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Dismiss game notification' })).toBeVisible();
+  await expect(page.getByText('Try Satisfied Games')).toHaveCount(0);
+
+  await explore.click();
+  await expect(page).toHaveURL(/\/satisfied-games$/);
+  await expect(page.getByRole('heading', { name: 'Satisfied Games' })).toBeVisible();
+});
+
 test('sign-in validates empty submission and password visibility works', async ({ page }) => {
   await page.goto('/signin');
   const email = page.getByRole('textbox', { name: 'Email Address' });
@@ -110,30 +126,8 @@ test('isolated seeded account can sign in and protected pages survive direct loa
   await expect(page).toHaveURL(/\/home$/);
   await expect(page.locator('main')).toBeVisible();
 
-  // Exercise the animated Like control once in the shared isolated test database.
-  // Keeping the toggle paired restores the seed post for later projects/runs.
-  if (test.info().project.name === 'edge') {
-    const welcome = page.getByRole('status');
-    await expect(welcome).toContainText('Welcome back to Vuprise');
-    await expect(welcome).toBeVisible();
-    await page.waitForTimeout(3600);
-    await expect(welcome).toBeVisible();
-    await expect(welcome).toBeHidden({ timeout: 6000 });
-    await expect(page.getByRole('dialog', { name: /Try Satisfied Games/i })).toBeVisible({ timeout: 3000 });
-
-    const like = page.locator('.post-like-heart').first();
-    await expect(like).toBeVisible();
-    await expect(like.locator('.pulse-heart__sr')).toHaveText('Like');
-    await expect.poll(() => like.evaluate((button) => getComputedStyle(button.querySelector('.pulse-heart__pill'), '::after').content)).toBe('"Like"');
-    const originalLiked = await like.getAttribute('aria-pressed');
-    await like.click();
-    await expect(like).toHaveAttribute('aria-pressed', originalLiked === 'true' ? 'false' : 'true');
-    await page.waitForTimeout(600);
-    await like.click();
-    await expect(like).toHaveAttribute('aria-pressed', originalLiked);
-  }
-
   const country = page.getByRole('combobox', { name: 'Country' });
+  await expect(country).toBeVisible({ timeout: 5000 }).catch(() => {});
   if (await country.isVisible()) {
     await expect(country).toBeEnabled();
     await country.fill('India');
@@ -146,6 +140,21 @@ test('isolated seeded account can sign in and protected pages survive direct loa
     await expect(country).toBeHidden();
   }
 
+  // Exercise the animated Like control once in the shared isolated test database.
+  // Keeping the toggle paired restores the seed post for later projects/runs.
+  if (test.info().project.name === 'edge') {
+    const like = page.locator('.post-like-heart').first();
+    await expect(like).toBeVisible();
+    await expect(like.locator('.pulse-heart__sr')).toHaveText('Like');
+    await expect.poll(() => like.evaluate((button) => getComputedStyle(button.querySelector('.pulse-heart__pill'), '::after').content)).toBe('"Like"');
+    const originalLiked = await like.getAttribute('aria-pressed');
+    await like.click();
+    await expect(like).toHaveAttribute('aria-pressed', originalLiked === 'true' ? 'false' : 'true');
+    await page.waitForTimeout(600);
+    await like.click();
+    await expect(like).toHaveAttribute('aria-pressed', originalLiked);
+  }
+
   for (const route of ['/home', '/messages', '/people', '/search?q=design', '/notifications', '/settings', '/profile/edit']) {
     await page.goto(route);
     await expect(page).not.toHaveURL(/\/signin$/);
@@ -153,6 +162,50 @@ test('isolated seeded account can sign in and protected pages survive direct loa
     await page.reload();
     await expect(page).not.toHaveURL(/\/signin$/);
     await expect(page.locator('main')).toBeVisible();
+  }
+
+  if (test.info().project.name === 'edge') {
+    await page.goto('/messages');
+    await page.getByRole('button', { name: 'Create group' }).click();
+    await expect(page.getByRole('dialog', { name: 'Create a group' })).toBeVisible();
+    const groupName = `Inbox group ${Date.now()}`;
+    await page.getByRole('textbox', { name: 'Group name' }).fill(groupName);
+    await expect(page.getByRole('button', { name: 'Create group', exact: true })).toBeDisabled();
+    const inviteCheckboxes = page.getByRole('checkbox', { name: /^Add .+ to group$/ });
+    await expect(inviteCheckboxes).toHaveCount(3);
+    await inviteCheckboxes.nth(0).check();
+    await inviteCheckboxes.nth(1).check();
+    await inviteCheckboxes.nth(2).check();
+    await page.getByRole('button', { name: 'Create group', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const groupChatItem = page.getByRole('button', { name: `Open group chat ${groupName}` });
+    await expect(groupChatItem).toBeVisible();
+    await groupChatItem.click();
+    await expect(page).toHaveURL(/\/groups\/[^/]+\/messages$/);
+    await expect(page.getByText(groupName).first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open profile menu' }).click();
+    await page.getByRole('menuitem', { name: 'Sign Out' }).click();
+    await page.getByRole('textbox', { name: 'Email Address' }).fill('marcus@nexora.io');
+    await page.getByRole('textbox', { name: 'Password' }).fill('password123');
+    await page.getByRole('button', { name: 'Sign In' }).click();
+    await expect(page).toHaveURL(/\/groups\/[^/]+\/messages$/);
+    const inviteeCountry = page.getByRole('combobox', { name: 'Country' });
+    await page.goto('/home');
+    await expect(inviteeCountry).toBeVisible({ timeout: 10_000 });
+    await inviteeCountry.fill('India');
+    await page.getByRole('option', { name: 'India', exact: true }).click();
+    const inviteeRegion = page.getByRole('combobox', { name: 'State / Province / Region' });
+    await inviteeRegion.fill('Tamil Nadu');
+    await page.getByRole('option', { name: 'Tamil Nadu', exact: true }).click();
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+    await expect(inviteeCountry).toBeHidden();
+    await page.goto('/notifications');
+    const groupInvitation = page.getByRole('button', { name: `Accept invitation to ${groupName}` });
+    await expect(groupInvitation).toBeVisible();
+    await groupInvitation.click();
+    await expect(page).toHaveURL(/\/groups\/[^/]+\/messages$/);
+    await expect(page.getByText(groupName).first()).toBeVisible();
   }
 });
 

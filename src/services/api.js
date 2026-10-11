@@ -130,6 +130,9 @@ export const groupAPI = {
   respond: (id, action) => api.post(`/groups/${id}/invitations/${action}`),
   setRole: (id, userId, role) => api.patch(`/groups/${id}/members/${userId}/role`, { role }),
   remove: (id, userId) => api.delete(`/groups/${id}/members/${userId}`),
+  delete: (id) => api.delete(`/groups/${id}`),
+  getMessages: (id, params = {}) => api.get(`/groups/${id}/messages`, { params }),
+  sendMessage: (id, data) => api.post(`/groups/${id}/messages`, data),
 };
 
 // ================= NOTIFICATION APIs =================
