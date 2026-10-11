@@ -680,8 +680,8 @@ const MessagesPage = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="xl" sx={{ minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Paper variant="outlined" sx={{ flex: 1, minHeight: { xs: 400, md: 520 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px minmax(0, 1fr)' }, overflow: 'hidden' }}>
+      <Container maxWidth="xl" sx={{ minWidth: 0, minHeight: 0, height: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Paper variant="outlined" sx={{ flex: 1, minHeight: { xs: 0, md: 520 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px minmax(0, 1fr)' }, overflow: 'hidden' }}>
           <Box sx={{ p: 2, borderRight: { md: 1 }, borderColor: 'divider' }}>
             <Skeleton variant="text" width="60%" height={32} />
             <Skeleton variant="rounded" height={42} sx={{ my: 2 }} />
@@ -694,7 +694,7 @@ const MessagesPage = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Container maxWidth="xl" sx={{ minWidth: 0, minHeight: 0, height: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
       {error && <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice('')}>{notice}</Alert>}
       {backupPrompt && (
@@ -711,7 +711,7 @@ const MessagesPage = () => {
           display: 'grid',
           gridTemplateColumns: mobile && (active || activeGroup) ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', md: '360px minmax(0, 1fr)' },
           height: '100%',
-          minHeight: { xs: 400, md: 520 },
+          minHeight: { xs: 0, md: 520 },
           overflow: 'hidden',
           borderRadius: 3,
           bgcolor: 'background.paper',
