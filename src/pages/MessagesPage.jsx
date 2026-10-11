@@ -23,6 +23,9 @@ import { useNotifications } from '../context/NotificationContext';
 import { decryptMessage, getDeviceKeyPair } from '../utils/e2ee';
 import { sortContactsByRecentConversations } from '../utils/messageInbox';
 import { getBrandedHeadline } from '../utils/brandCopy';
+import Badge from '@mui/material/Badge';
+import TypingIndicator from '../components/TypingIndicator';
+import { sendTyping, subscribeRealtime, watchPresence } from '../services/realtime';
 import GroupChatPanel from './GroupChatPage';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
@@ -76,6 +79,8 @@ const MessagesPage = () => {
   const [messageEditDraft, setMessageEditDraft] = useState('');
   const [messageToDelete, setMessageToDelete] = useState(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
+  const [presenceByUser, setPresenceByUser] = useState({});
+  const [typingByScope, setTypingByScope] = useState({});
   const bottomRef = useRef(null);
   const searchRef = useRef(null);
   const composerInputRef = useRef(null);
@@ -89,6 +94,47 @@ const MessagesPage = () => {
   const longPressTriggered = useRef(false);
   const groupSelectionHandled = useRef('');
   const imageInputRef = useRef(null);
+  const typingRef = useRef({ scopeId: '', timer: null });
+
+  const stopTyping = useCallback(() => {
+    const typing = typingRef.current;
+    if (typing.timer) window.clearTimeout(typing.timer);
+    if (typing.scopeId) sendTyping('conversation', typing.scopeId, false);
+    typingRef.current = { scopeId: '', timer: null };
+  }, []);
+
+  const updateDraft = useCallback((text) => {
+    setDraft(text);
+    const scopeId = active?._id;
+    if (!scopeId || !text.trim()) { stopTyping(); return; }
+    if (typingRef.current.scopeId !== scopeId) {
+      stopTyping();
+      typingRef.current.scopeId = scopeId;
+      sendTyping('conversation', scopeId, true);
+    }
+    if (typingRef.current.timer) window.clearTimeout(typingRef.current.timer);
+    typingRef.current.timer = window.setTimeout(stopTyping, 1400);
+  }, [active?._id, stopTyping]);
+
+  useEffect(() => () => stopTyping(), [stopTyping]);
+
+  useEffect(() => subscribeRealtime((event) => {
+    if (event.type === 'presence') setPresenceByUser((current) => ({ ...current, [event.userId]: event.state }));
+    if (event.type === 'typing') setTypingByScope((current) => {
+      const key = `${event.scopeType}:${event.scopeId}`;
+      const next = { ...(current[key] || {}) };
+      if (event.active) next[event.userId] = { name: event.name };
+      else delete next[event.userId];
+      return { ...current, [key]: next };
+    });
+  }), []);
+
+  const presenceTargets = useMemo(() => [
+    ...contacts.map((contact) => contact._id),
+    ...conversations.map((conversation) => conversation.peer?._id),
+    ...groups.flatMap((group) => (group.members || []).map((member) => member.user?._id || member.user)),
+  ].filter(Boolean), [contacts, conversations, groups]);
+  useEffect(() => { watchPresence(presenceTargets); }, [presenceTargets]);
 
   useEffect(() => {
     if (!attachment) { setAttachmentPreview(''); return undefined; }
@@ -180,7 +226,7 @@ const MessagesPage = () => {
 
   const createGroup = async (event) => {
     event.preventDefault();
-    if (selectedGroupMembers.length < 2) return;
+    if (groupNameDraft.trim().length < 2) return;
     setCreatingGroup(true);
     setError('');
     try {
@@ -191,7 +237,9 @@ const MessagesPage = () => {
       });
       const createdGroup = response.data.group;
       setGroups((existing) => [createdGroup, ...existing.filter((group) => String(group._id) !== String(createdGroup._id))]);
-      setNotice('Group created. Invitations were sent to the selected connections.');
+      setNotice(selectedGroupMembers.length
+        ? 'Group created. Invitations were sent to the selected connections.'
+        : 'Group created. You can invite accepted connections from group settings later.');
       setGroupDialogOpen(false);
       setGroupNameDraft('');
       setGroupAboutDraft('');
@@ -397,6 +445,7 @@ const MessagesPage = () => {
   }, [messages.length]);
 
   const openConversation = useCallback(async (contact) => {
+    stopTyping();
     setActiveGroup(null);
     groupSelectionHandled.current = '';
     setAttachment(null);
@@ -431,9 +480,10 @@ const MessagesPage = () => {
       if (requestId !== openRequestId.current) return;
       setError(openError.message || 'Could not open this conversation.');
     }
-  }, [active?._id, conversations, searchParams, setSearchParams]);
+  }, [active?._id, conversations, searchParams, setSearchParams, stopTyping]);
 
   const openGroupConversation = (group) => {
+    stopTyping();
     setError('');
     setAttachment(null);
     setActive(null);
@@ -445,6 +495,7 @@ const MessagesPage = () => {
   };
 
   const closeGroupConversation = () => {
+    stopTyping();
     setActiveGroup(null);
     groupSelectionHandled.current = '';
     setSearchParams({}, { replace: true });
@@ -462,6 +513,7 @@ const MessagesPage = () => {
     event.preventDefault();
     const text = (composerInputRef.current?.value ?? draft).trim();
     if ((!text && !attachment) || !active || sending) return;
+    stopTyping();
     const activeConversation = active;
     const previousConversation = conversations.find((conversation) => conversation._id === activeConversation._id);
     const temporaryId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -681,7 +733,8 @@ const MessagesPage = () => {
                       const senderId = String(lastMessage?.sender?._id || lastMessage?.sender || '');
                       const senderName = senderId === String(user?._id) ? 'You' : lastMessage?.sender?.name || 'Member';
                       const groupSnippet = lastMessage?.deletedForEveryone ? 'This message was deleted' : lastMessage?.text || (lastMessage?.imageUrl ? 'Photo' : '');
-                      const groupPreview = groupSnippet ? `${senderName}: ${groupSnippet}` : `${group.members?.length || 0} members`;
+                      const isGroupTyping = Object.keys(typingByScope[`group:${group._id}`] || {}).length > 0;
+                      const groupPreview = isGroupTyping ? 'Typing…' : groupSnippet ? `${senderName}: ${groupSnippet}` : `${group.members?.length || 0} members`;
                       return (
                         <ListItem key={`group-${group._id}`} disablePadding>
                           <ListItemButton
@@ -695,7 +748,7 @@ const MessagesPage = () => {
                             </ListItemAvatar>
                             <ListItemText
                               primary={group.name || 'Group chat'}
-                              secondary={groupPreview}
+                              secondary={isGroupTyping ? <TypingIndicator label="Typing…" compact /> : groupPreview}
                               primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
                               secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                             />
@@ -750,14 +803,17 @@ const MessagesPage = () => {
                           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
                         }}
                       >
-                        <ListItemAvatar sx={{ minWidth: 62 }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></ListItemAvatar>
+                        <ListItemAvatar sx={{ minWidth: 62 }}><Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[contact._id] !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
                         <ListItemText
                           primary={conversation?.displayName || contact.name || 'Vuprise member'}
-                          secondary={preview}
+                          secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
+                            ? <TypingIndicator label="Typing…" compact />
+                            : preview}
                           primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
                           secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                         />
                         <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
+                          {['online', 'offline'].includes(presenceByUser[contact._id]) && <Typography variant="caption" color={presenceByUser[contact._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[contact._id] === 'online' ? 'Online' : 'Offline'}</Typography>}
                           {hasMessages && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(conversation.lastMessageAt || conversation.lastMessage.createdAt)}</Typography>}
                         </Stack>
                       </ListItemButton>
@@ -791,11 +847,11 @@ const MessagesPage = () => {
             ) : active ? (
               <>
                 <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
-                  {mobile && <IconButton aria-label="Back to chats" onClick={() => { selectedConversationId.current = null; setActive(null); setMessages([]); }} size="small"><ArrowBackRoundedIcon /></IconButton>}
-                  <Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar>
+                  {mobile && <IconButton aria-label="Back to chats" onClick={() => { stopTyping(); selectedConversationId.current = null; setActive(null); setMessages([]); }} size="small"><ArrowBackRoundedIcon /></IconButton>}
+                  <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id] !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography variant="subtitle1" fontWeight={700} noWrap>{active.displayName || active.peer.name}</Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap>{getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
+                    <Typography variant="caption" color={presenceByUser[active.peer._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[active.peer._id] === 'online' ? 'Online' : presenceByUser[active.peer._id] === 'offline' ? 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
                   </Box>
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'block' } }}>Synced to your account</Typography>
                 </Stack>
@@ -836,6 +892,7 @@ const MessagesPage = () => {
                       </Box>
                     );
                   })}
+                  {Object.keys(typingByScope[`conversation:${active._id}`] || {}).length > 0 && <TypingIndicator label={`${Object.values(typingByScope[`conversation:${active._id}`]).map((entry) => entry.name).join(', ')} typing`} sx={{ alignSelf: 'flex-start', minHeight: 22 }} />}
                   <div ref={bottomRef} />
                 </Box>
                 {attachment && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={attachmentPreview} alt="Image preview" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
@@ -844,15 +901,15 @@ const MessagesPage = () => {
                   <IconButton aria-label="Attach image" onClick={() => imageInputRef.current?.click()} disabled={sending}><AttachFileRoundedIcon /></IconButton>
                   <EmojiPickerControl
                     disabled={sending}
-                    onSelect={(emoji) => setDraft((current) => `${current}${emoji}`.slice(0, 5000))}
+                    onSelect={(emoji) => updateDraft(`${draft}${emoji}`.slice(0, 5000))}
                   />
                   <TextField
                     fullWidth multiline maxRows={4} size="small" label="Message" value={draft}
                     sx={{ flex: 1, minWidth: 0 }}
                     inputRef={composerInputRef}
-                    onChange={(event) => setDraft(event.target.value.slice(0, 5000))}
-                    onInput={(event) => setDraft(event.currentTarget.value.slice(0, 5000))}
-                    onFocus={(event) => setDraft(event.currentTarget.value.slice(0, 5000))}
+                    onChange={(event) => updateDraft(event.target.value.slice(0, 5000))}
+                    onInput={(event) => updateDraft(event.currentTarget.value.slice(0, 5000))}
+                    onFocus={(event) => updateDraft(event.currentTarget.value.slice(0, 5000))}
                     onKeyDown={handleComposerKeyDown}
                     slotProps={{ htmlInput: { maxLength: 5000, name: 'message' } }}
                     placeholder="Write a message..."
@@ -953,7 +1010,7 @@ const MessagesPage = () => {
               />
               <Box>
                 <Typography variant="subtitle2" fontWeight={750}>Add connected people</Typography>
-                <Typography variant="caption" color="text.secondary">Select at least 2 people. Only your accepted connections can be invited.</Typography>
+                <Typography variant="caption" color="text.secondary">You can create a group just for yourself and invite accepted connections later.</Typography>
                 <Paper variant="outlined" sx={{ mt: 1, maxHeight: 280, overflowY: 'auto', borderRadius: 2 }}>
                   {contacts.length ? contacts.map((person) => {
                     const selected = selectedGroupMembers.includes(String(person._id));
@@ -985,18 +1042,18 @@ const MessagesPage = () => {
                       </Box>
                     );
                   }) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>You need accepted connections before creating a group.</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No connections yet. You can create the group and invite people later.</Typography>
                   )}
                 </Paper>
-                <Typography variant="caption" color={selectedGroupMembers.length >= 2 ? 'success.main' : 'text.secondary'} sx={{ display: 'block', mt: 0.75 }}>
-                  {selectedGroupMembers.length} selected. You will also be in the group.
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                  {selectedGroupMembers.length} invited. You will be the first member.
                 </Typography>
               </Box>
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={closeGroupDialog} disabled={creatingGroup}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={creatingGroup || groupNameDraft.trim().length < 2 || selectedGroupMembers.length < 2}>
+            <Button type="submit" variant="contained" disabled={creatingGroup || groupNameDraft.trim().length < 2}>
               {creatingGroup ? <CircularProgress size={18} color="inherit" /> : 'Create group'}
             </Button>
           </DialogActions>

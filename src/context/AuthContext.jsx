@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../services/api';
+import { connectRealtime, disconnectRealtime } from '../services/realtime';
 
 const AuthContext = createContext();
 
@@ -20,11 +21,18 @@ export const AuthProvider = ({ children }) => {
   const clearWelcomeMessage = useCallback(() => setWelcomeMessage(''), []);
 
   const logout = useCallback(() => {
+    disconnectRealtime({ notify: true });
     localStorage.removeItem('nexora_token');
     localStorage.removeItem('nexora_user');
     setToken(null);
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    connectRealtime(token);
+    return () => disconnectRealtime();
+  }, [token]);
 
   // Fetch current user details on boot if token exists
   const checkAuth = useCallback(async () => {

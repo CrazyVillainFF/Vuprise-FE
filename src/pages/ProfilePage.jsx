@@ -28,6 +28,7 @@ import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import WorkOutlineOutlinedIcon from '@mui/icons-material/WorkOutlineOutlined';
 import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
+import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
 
 import { useAuth } from '../context/AuthContext';
 import { userAPI, postAPI } from '../services/api';
@@ -37,6 +38,7 @@ import ImageUploadModal from '../components/ImageUploadModal';
 import { ProfileHeaderSkeleton, PostSkeleton } from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import { subscribeRealtime, watchPresence } from '../services/realtime';
 
 const ProfilePage = () => {
   const { id } = useParams();
@@ -49,6 +51,7 @@ const ProfilePage = () => {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [postsError, setPostsError] = useState(null);
   const [error, setError] = useState(null);
+  const [presence, setPresence] = useState('unknown');
 
   // Upload modals
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -58,6 +61,14 @@ const ProfilePage = () => {
 
   const profileUserId = id || (currentUser ? currentUser._id : null);
   const isOwnProfile = currentUser && profileUserId === currentUser._id;
+
+  useEffect(() => {
+    setPresence('unknown');
+    watchPresence(profileUserId ? [profileUserId] : []);
+    return subscribeRealtime((event) => {
+      if (event.type === 'presence' && String(event.userId) === String(profileUserId)) setPresence(event.state);
+    });
+  }, [profileUserId]);
 
   useEffect(() => {
     if (!profileUserId) return;
@@ -301,6 +312,10 @@ const ProfilePage = () => {
             <Typography variant="h6" color="text.secondary" fontWeight={500} sx={{ mt: 0.5, maxWidth: 720 }}>
               {getBrandedHeadline(profile.headline) || 'Professional at Vuprise'}
             </Typography>
+            {!isOwnProfile && (presence === 'online' || presence === 'offline') && <Stack direction="row" spacing={0.5} alignItems="center" role="status" sx={{ mt: 0.5 }}>
+              {presence === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: 'success.main' }} />}
+              <Typography variant="caption" color={presence === 'online' ? 'success.main' : 'text.secondary'}>{presence === 'online' ? 'Online' : 'Offline'}</Typography>
+            </Stack>}
 
             {/* Metadata Chips: Location, Company, Website */}
             <Stack direction="row" spacing={2.5} flexWrap="wrap" sx={{ mt: 1.5, color: 'text.secondary' }}>

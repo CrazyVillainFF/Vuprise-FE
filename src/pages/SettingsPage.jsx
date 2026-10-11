@@ -46,6 +46,7 @@ const SettingsPage = () => {
   const [passwordError, setPasswordError] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [savingHideActivity, setSavingHideActivity] = useState(false);
   const [privacyError, setPrivacyError] = useState(null);
   const [keyBackup, setKeyBackup] = useState({ loading: true, pair: null, remoteKey: null, backups: [], error: '' });
   const [backupPassphrase, setBackupPassphrase] = useState('');
@@ -128,6 +129,21 @@ const SettingsPage = () => {
       setPrivacyError(err.message || 'Could not update your privacy setting.');
     } finally {
       setSavingPrivacy(false);
+    }
+  };
+
+  const handleHideActivityChange = async (event) => {
+    const hideActivity = event.target.checked;
+    try {
+      setSavingHideActivity(true);
+      setPrivacyError(null);
+      const response = await userAPI.updateSettings({ hideActivity });
+      updateUser(response.data.user);
+      setToastMessage(hideActivity ? 'Your online and offline status is hidden.' : 'Your online and offline status is visible.');
+    } catch (err) {
+      setPrivacyError(err.message || 'Could not update Hide Activity.');
+    } finally {
+      setSavingHideActivity(false);
     }
   };
 
@@ -321,6 +337,21 @@ const SettingsPage = () => {
             <FormControlLabel
               label={user?.privateAccount ? 'On' : 'Off'}
               control={<Switch checked={Boolean(user?.privateAccount)} onChange={handlePrivateAccountChange} disabled={savingPrivacy} inputProps={{ 'aria-label': 'Private Account' }} />}
+              sx={{ m: 0, flexShrink: 0 }}
+            />
+          </Stack>
+          {privacyError && <Alert severity="error" sx={{ mt: 2 }}>{privacyError}</Alert>}
+        </Card>
+
+        <Card sx={{ p: 3 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" fontWeight={700}>Hide Activity</Typography>
+              <Typography variant="body2" color="text.secondary">Hide your online and offline status from other users.</Typography>
+            </Box>
+            <FormControlLabel
+              label={user?.hideActivity ? 'On' : 'Off'}
+              control={<Switch checked={Boolean(user?.hideActivity)} onChange={handleHideActivityChange} disabled={savingHideActivity} inputProps={{ 'aria-label': 'Hide Activity' }} />}
               sx={{ m: 0, flexShrink: 0 }}
             />
           </Stack>

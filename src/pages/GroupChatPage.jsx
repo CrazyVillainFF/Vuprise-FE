@@ -16,6 +16,8 @@ import EmojiPickerControl from '../components/EmojiPickerControl';
 import { buildGroupMessagePayload } from '../utils/groupMessagePayload';
 import { useAuth } from '../context/AuthContext';
 import { connectionAPI, groupAPI } from '../services/api';
+import TypingIndicator from '../components/TypingIndicator';
+import { sendTyping, subscribeRealtime } from '../services/realtime';
 
 const PAGE_SIZE = 50;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -52,11 +54,45 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
   const [messageToEdit, setMessageToEdit] = useState(null);
   const [messageEditDraft, setMessageEditDraft] = useState('');
   const [messageToDelete, setMessageToDelete] = useState(null);
+  const [typingMembers, setTypingMembers] = useState({});
   const messagesRef = useRef([]);
   const scrollRef = useRef(null);
   const pollLock = useRef(false);
   const draftRef = useRef(null);
   const imageInputRef = useRef(null);
+  const localTyping = useRef(false);
+  const typingTimer = useRef(null);
+
+  const stopGroupTyping = () => {
+    if (typingTimer.current) window.clearTimeout(typingTimer.current);
+    if (localTyping.current) sendTyping('group', groupId, false);
+    localTyping.current = false;
+  };
+
+  const changeDraft = (text) => {
+    setDraft(text);
+    draftRef.current = text.trim() || imageFile ? { ...(draftRef.current || {}), text, clientMessageId: draftRef.current?.clientMessageId || newClientMessageId() } : null;
+    if (!text.trim()) { stopGroupTyping(); return; }
+    if (!localTyping.current) { localTyping.current = true; sendTyping('group', groupId, true); }
+    if (typingTimer.current) window.clearTimeout(typingTimer.current);
+    typingTimer.current = window.setTimeout(stopGroupTyping, 1400);
+  };
+
+  useEffect(() => subscribeRealtime((event) => {
+    if (event.type !== 'typing' || event.scopeType !== 'group' || String(event.scopeId) !== String(groupId)) return;
+    setTypingMembers((current) => {
+      const next = { ...current };
+      if (event.active) next[event.userId] = event.name || 'A member';
+      else delete next[event.userId];
+      return next;
+    });
+  }), [groupId]);
+
+  useEffect(() => () => {
+    if (typingTimer.current) window.clearTimeout(typingTimer.current);
+    if (localTyping.current) sendTyping('group', groupId, false);
+    localTyping.current = false;
+  }, [groupId]);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => {
@@ -156,6 +192,7 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
       file: imageFile,
     };
     if ((!submission?.text?.trim() && !submission?.file) || !group) return;
+    stopGroupTyping();
     setSending(true); setError('');
     const tempId = `pending-${submission.clientMessageId}`;
     const optimistic = {
@@ -319,11 +356,12 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
         })}
       </Box>
       {imageFile && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={imagePreview} alt="Image preview" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{imageFile.name}</Typography><Button size="small" onClick={() => { setImageFile(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
+      {Object.keys(typingMembers).length > 0 && <Box sx={{ px: 2, py: 0.15, minHeight: 22 }}><TypingIndicator label={`${Object.values(typingMembers).join(', ')} typing`} /></Box>}
       <Box component="form" onSubmit={submitMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: imageFile ? 0 : 1, borderColor: 'divider', display: 'flex', gap: 0.5, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
         <input ref={imageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={chooseImage} aria-label="Attach an image" />
         <IconButton aria-label="Attach image" onClick={() => imageInputRef.current?.click()} disabled={sending || loading || Boolean(failed)}><AttachFileRoundedIcon /></IconButton>
-        <EmojiPickerControl disabled={sending || loading || Boolean(failed)} onSelect={(emoji) => { const text = `${draftRef.current?.text ?? draft}${emoji}`.slice(0, 5000); draftRef.current = { ...(draftRef.current || {}), text, clientMessageId: draftRef.current?.clientMessageId || newClientMessageId() }; setDraft(text); }} />
-        <TextField fullWidth multiline maxRows={5} size="small" label="Message group" value={draft} disabled={sending || loading || !group || Boolean(failed)} onChange={(event) => { const text = event.target.value.slice(0, 5000); setDraft(text); draftRef.current = text.trim() || imageFile ? { ...(draftRef.current || {}), text, clientMessageId: draftRef.current?.clientMessageId || newClientMessageId() } : null; }} onKeyDown={onComposerKeyDown} slotProps={{ htmlInput: { maxLength: 5000, 'aria-label': 'Message group' } }} placeholder="Write to the group…" />
+        <EmojiPickerControl disabled={sending || loading || Boolean(failed)} onSelect={(emoji) => changeDraft(`${draftRef.current?.text ?? draft}${emoji}`.slice(0, 5000))} />
+        <TextField fullWidth multiline maxRows={5} size="small" label="Message group" value={draft} disabled={sending || loading || !group || Boolean(failed)} onChange={(event) => changeDraft(event.target.value.slice(0, 5000))} onKeyDown={onComposerKeyDown} slotProps={{ htmlInput: { maxLength: 5000, 'aria-label': 'Message group' } }} placeholder="Write to the group…" />
         <Button type="submit" variant="contained" aria-label="Send group message" disabled={sending || loading || (!draft.trim() && !imageFile) || Boolean(failed)} sx={{ minWidth: 48, width: 48, height: 40, px: 0 }}>{sending ? <CircularProgress size={18} color="inherit" /> : <SendRoundedIcon />}</Button>
       </Box>
       {failed && <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, pb: 1 }}><Typography variant="caption" color="error.main">Unsent message kept here for retry.</Typography><Stack direction="row" spacing={0.5}><Button size="small" onClick={() => { setFailed(null); setDraft(''); setImageFile(null); draftRef.current = null; }}>Discard</Button><Button size="small" startIcon={<ReplayRoundedIcon />} disabled={sending} onClick={() => submitMessage(null, true)}>Retry</Button></Stack></Stack>}
