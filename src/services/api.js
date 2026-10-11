@@ -58,7 +58,6 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
   updatePassword: (data) => api.put('/auth/updatepassword', data),
   requestPasswordReset: (email) => api.post('/auth/password-reset/request', { email }),
-  verifyPasswordResetCode: (email, code) => api.post('/auth/password-reset/verify', { email, code }),
   completePasswordReset: (data) => api.post('/auth/password-reset/complete', data),
 };
 
