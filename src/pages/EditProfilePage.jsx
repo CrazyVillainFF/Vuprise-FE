@@ -218,16 +218,6 @@ const EditProfilePage = () => {
                   required
                 />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Location"
-                  name="location"
-                  placeholder="e.g. San Francisco, CA"
-                  fullWidth
-                  value={formData.location}
-                  onChange={handleInputChange}
-                />
-              </Grid>
               <Grid size={{ xs: 12 }}>
                 <TextField
                   label="Professional Headline"
@@ -249,7 +239,7 @@ const EditProfilePage = () => {
                   required={false}
                 />
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
-                  Your country and region appear on your profile. Leave both blank to keep using the location text above.
+                  Your selected country and region will appear on your profile.
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
