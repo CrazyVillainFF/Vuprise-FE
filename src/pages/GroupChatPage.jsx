@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, FormControlLabel, IconButton, Menu, MenuItem, Paper, Skeleton, Stack, TextField,
+  Alert, Avatar, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent,
+  DialogTitle, IconButton, Menu, MenuItem, Paper, Skeleton, Stack, TextField,
   Typography
 } from '@mui/material';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
@@ -49,6 +49,8 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
   const [settingsPhoto, setSettingsPhoto] = useState(null);
   const [settingsPhotoPreview, setSettingsPhotoPreview] = useState('');
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsNotice, setSettingsNotice] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [messageToEdit, setMessageToEdit] = useState(null);
@@ -236,9 +238,9 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
   };
 
   const openSettings = async () => {
-    setMenuAnchor(null); setSettingsName(group?.name || ''); setSettingsAbout(group?.about || ''); setSettingsPhoto(null); setSettingsOpen(true);
+    setMenuAnchor(null); setSettingsName(group?.name || ''); setSettingsAbout(group?.about || ''); setSettingsPhoto(null); setSettingsError(''); setSettingsNotice(''); setSettingsOpen(true);
     try { const response = await connectionAPI.getConnections(); setConnections(response.data.connections || []); }
-    catch (requestError) { setError(requestError.message || 'Could not load your connections.'); }
+    catch (requestError) { setSettingsError(requestError.message || 'Could not load your connections.'); }
   };
 
   const saveGroup = async (event) => {
@@ -254,9 +256,14 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
   };
 
   const invitePerson = async (personId) => {
-    setActionBusy(true); setError('');
-    try { const response = await groupAPI.invite(groupId, personId); publishGroup(response.data.group); }
-    catch (inviteError) { setError(inviteError.message || 'Could not invite this connection.'); }
+    setActionBusy(true); setSettingsError(''); setSettingsNotice('');
+    try {
+      const response = await groupAPI.invite(groupId, personId);
+      publishGroup(response.data.group);
+      const invitedPerson = connections.find((person) => String(person._id) === String(personId));
+      setSettingsNotice(`Invitation sent to ${invitedPerson?.name || 'your connection'}. They will join after accepting it.`);
+      return true;
+    } catch (inviteError) { setSettingsError(inviteError.message || 'Could not send this group invitation.'); return false; }
     finally { setActionBusy(false); }
   };
 
@@ -371,6 +378,8 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
           <DialogTitle id="group-settings-title">Group info & settings</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
+              {settingsError && <Alert severity="error" onClose={() => setSettingsError('')}>{settingsError}</Alert>}
+              {settingsNotice && <Alert severity="success" onClose={() => setSettingsNotice('')}>{settingsNotice}</Alert>}
               <Stack direction="row" spacing={1.5} alignItems="center">
                 <Avatar src={settingsPhotoPreview || group?.photo} variant="rounded" sx={{ width: 58, height: 58 }}>{group?.name?.[0] || <GroupsRoundedIcon />}</Avatar>
                 <Box sx={{ minWidth: 0, flex: 1 }}><Typography fontWeight={700}>{group?.name}</Typography><Typography variant="caption" color="text.secondary">{group?.members?.length || 0} members · {myRole || 'Member'}</Typography></Box>
@@ -390,8 +399,8 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
                   {canEditGroup && !isOwner && !isSelf && (myRole === 'owner' || member.role === 'member') && <Button size="small" color="error" disabled={actionBusy} onClick={() => setConfirm({ kind: 'remove-member', userId: id, name: person.name })}>Remove</Button>}
                 </Stack>;
               })}
-              {canEditGroup && <Box><Typography variant="subtitle2" fontWeight={700}>Add people</Typography><Typography variant="caption" color="text.secondary">Only accepted connections can be invited.</Typography><Stack spacing={0.25} sx={{ mt: 0.75, maxHeight: 180, overflowY: 'auto' }}>
-                {availableConnections.map((person) => <FormControlLabel key={person._id} control={<Checkbox disabled={actionBusy} onChange={(event) => { if (event.target.checked) invitePerson(person._id); }} />} label={<Stack direction="row" spacing={1} alignItems="center"><Avatar src={person.profilePicture} sx={{ width: 28, height: 28 }}>{person.name?.[0] || '?'}</Avatar><Typography variant="body2">{person.name}</Typography></Stack>} />)}
+              {canEditGroup && <Box><Typography variant="subtitle2" fontWeight={700}>Add people</Typography><Typography variant="caption" color="text.secondary">Click Invite to send a request. They become a member after accepting it.</Typography><Stack spacing={0.25} sx={{ mt: 0.75, maxHeight: 180, overflowY: 'auto' }}>
+                {availableConnections.map((person) => <Stack key={person._id} direction="row" alignItems="center" spacing={1} sx={{ py: 0.5 }}><Avatar src={person.profilePicture} sx={{ width: 28, height: 28 }}>{person.name?.[0] || '?'}</Avatar><Typography variant="body2" sx={{ flex: 1 }}>{person.name}</Typography><Button size="small" variant="outlined" disabled={actionBusy} onClick={() => invitePerson(person._id)}>{actionBusy ? <CircularProgress size={16} /> : 'Invite'}</Button></Stack>)}
                 {!availableConnections.length && <Typography variant="body2" color="text.secondary">No new connected people to add.</Typography>}
               </Stack></Box>}
             </Stack>
