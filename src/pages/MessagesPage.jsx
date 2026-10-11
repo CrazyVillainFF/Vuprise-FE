@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Checkbox, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, InputAdornment, List,
+  Alert, Avatar, Box, Button, ButtonBase, Checkbox, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, InputAdornment, List,
   ListItem, ListItemButton, ListItemAvatar, ListItemText, Menu, MenuItem, Paper, Skeleton, Stack, TextField,
   Typography, useMediaQuery
 } from '@mui/material';
@@ -51,8 +51,11 @@ const MessagesPage = () => {
   const [conversations, setConversations] = useState([]);
   const [groups, setGroups] = useState([]);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
-  const [groupNameDraft, setGroupNameDraft] = useState('');
-  const [groupAboutDraft, setGroupAboutDraft] = useState('');
+  const [groupNameDraft, setGroupNameDraft] = useState('New Group');
+  const [groupAboutDraft, setGroupAboutDraft] = useState('Welcome Everyone');
+  const [groupIconFile, setGroupIconFile] = useState(null);
+  const [groupIconPreview, setGroupIconPreview] = useState('');
+  const [groupDialogError, setGroupDialogError] = useState('');
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [active, setActive] = useState(null);
@@ -94,6 +97,7 @@ const MessagesPage = () => {
   const longPressTriggered = useRef(false);
   const groupSelectionHandled = useRef('');
   const imageInputRef = useRef(null);
+  const groupIconInputRef = useRef(null);
   const typingRef = useRef({ scopeId: '', timer: null });
 
   const stopTyping = useCallback(() => {
@@ -142,6 +146,13 @@ const MessagesPage = () => {
     setAttachmentPreview(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [attachment]);
+
+  useEffect(() => {
+    if (!groupIconFile) { setGroupIconPreview(''); return undefined; }
+    const objectUrl = URL.createObjectURL(groupIconFile);
+    setGroupIconPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [groupIconFile]);
 
   useEffect(() => {
     const requestedGroupId = searchParams.get('group');
@@ -219,33 +230,62 @@ const MessagesPage = () => {
   const closeGroupDialog = () => {
     if (creatingGroup) return;
     setGroupDialogOpen(false);
-    setGroupNameDraft('');
-    setGroupAboutDraft('');
+    setGroupNameDraft('New Group');
+    setGroupAboutDraft('Welcome Everyone');
+    setGroupIconFile(null);
+    setGroupDialogError('');
     setSelectedGroupMembers([]);
+  };
+
+  const selectGroupIcon = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    setGroupDialogError('');
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/gif'].includes(file.type)) {
+      setGroupDialogError('Choose a JPEG, PNG, WEBP, or GIF image.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setGroupDialogError('Group icons must be 10 MB or smaller.');
+      return;
+    }
+    setGroupIconFile(file);
   };
 
   const createGroup = async (event) => {
     event.preventDefault();
-    if (groupNameDraft.trim().length < 2) return;
+    const name = groupNameDraft.trim() || 'New Group';
+    const about = groupAboutDraft.trim() || 'Welcome Everyone';
+    if (name.length < 2 || name.length > 80) {
+      setGroupDialogError('Group name must be between 2 and 80 characters.');
+      return;
+    }
     setCreatingGroup(true);
-    setError('');
+    setGroupDialogError('');
     try {
-      const response = await groupAPI.create({
-        name: groupNameDraft.trim(),
-        about: groupAboutDraft.trim(),
-        memberIds: selectedGroupMembers,
-      });
+      let payload = { name, about, memberIds: selectedGroupMembers };
+      if (groupIconFile) {
+        payload = new FormData();
+        payload.append('name', name);
+        payload.append('about', about);
+        selectedGroupMembers.forEach((memberId) => payload.append('memberIds', memberId));
+        payload.append('image', groupIconFile);
+      }
+      const response = await groupAPI.create(payload);
       const createdGroup = response.data.group;
       setGroups((existing) => [createdGroup, ...existing.filter((group) => String(group._id) !== String(createdGroup._id))]);
       setNotice(selectedGroupMembers.length
         ? 'Group created. Invitations were sent to the selected connections.'
         : 'Group created. You can invite accepted connections from group settings later.');
       setGroupDialogOpen(false);
-      setGroupNameDraft('');
-      setGroupAboutDraft('');
+      setGroupNameDraft('New Group');
+      setGroupAboutDraft('Welcome Everyone');
+      setGroupIconFile(null);
+      setGroupDialogError('');
       setSelectedGroupMembers([]);
     } catch (createError) {
-      setError(createError.message || 'Could not create the group. Please try again.');
+      setGroupDialogError(createError.message || 'Could not create the group. Please try again.');
     } finally {
       setCreatingGroup(false);
     }
@@ -688,7 +728,7 @@ const MessagesPage = () => {
               <IconButton aria-label="Find a connection to message" onClick={() => searchRef.current?.focus()}>
                 <EditNoteRoundedIcon />
               </IconButton>
-              <IconButton aria-label="Create group" onClick={() => { setError(''); setGroupDialogOpen(true); }}>
+              <IconButton aria-label="Create group" onClick={() => { setError(''); setGroupDialogError(''); setGroupNameDraft('New Group'); setGroupAboutDraft('Welcome Everyone'); setGroupIconFile(null); setGroupDialogOpen(true); }}>
                 <GroupsRoundedIcon />
               </IconButton>
             </Stack>
@@ -836,22 +876,20 @@ const MessagesPage = () => {
               <>
                 <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
                   {mobile && <IconButton aria-label="Back to chats" onClick={() => { stopTyping(); selectedConversationId.current = null; setActive(null); setMessages([]); }} size="small"><ArrowBackRoundedIcon /></IconButton>}
-                  <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id] !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography variant="subtitle1" fontWeight={700} noWrap>{active.displayName || active.peer.name}</Typography>
-                    <Typography variant="caption" color={presenceByUser[active.peer._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[active.peer._id] === 'online' ? 'Online' : presenceByUser[active.peer._id] === 'offline' ? 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'block' } }}>Synced to your account</Typography>
+                  <ButtonBase
+                    onClick={() => navigate(`/profile/${active.peer._id}`)}
+                    aria-label={`View ${active.peer.name || 'user'}'s profile`}
+                    sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, minWidth: 0, flex: 1, borderRadius: 2, textAlign: 'left', p: 0.5, ml: -0.5, '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}
+                  >
+                    <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id] !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="subtitle1" fontWeight={700} noWrap>{active.displayName || active.peer.name}</Typography>
+                      <Typography variant="caption" color={presenceByUser[active.peer._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[active.peer._id] === 'online' ? 'Online' : presenceByUser[active.peer._id] === 'offline' ? 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
+                    </Box>
+                  </ButtonBase>
                 </Stack>
                 <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 1.5, sm: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.25, bgcolor: 'background.default' }} aria-live="polite" aria-label={`Conversation with ${active.peer.name}`}>
                   {loadingMessages && !messages.length ? <Stack spacing={1.25} sx={{ width: 'min(90%, 440px)', alignSelf: 'center', mt: 3 }}><Skeleton variant="rounded" width="62%" height={42} /><Skeleton variant="rounded" width="74%" height={42} sx={{ alignSelf: 'flex-end' }} /><Skeleton variant="rounded" width="55%" height={42} /></Stack> : null}
-                  {messages.length === 0 && !loadingMessages && (
-                    <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, py: 5, textAlign: 'center' }}>
-                      <Avatar src={active.peer.profilePicture} alt="" sx={{ width: 72, height: 72, mb: 1.5 }}>{active.peer.name?.[0] || 'N'}</Avatar>
-                      <Typography variant="h6" fontWeight={700}>{active.peer.name}</Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 320 }}>Start a private conversation with your Vuprise connection.</Typography>
-                    </Stack>
-                  )}
                   {messages.map((message) => {
                     const ownMessage = message.sender.toString() === user._id.toString();
                     const readByPeer = message.readBy?.some((id) => id.toString() === active.peer._id.toString());
@@ -977,14 +1015,26 @@ const MessagesPage = () => {
           <DialogTitle id="create-group-title">Create a group</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
+              {groupDialogError && <Alert severity="error" onClose={() => setGroupDialogError('')}>{groupDialogError}</Alert>}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <input ref={groupIconInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={selectGroupIcon} aria-label="Choose a group icon" />
+                <Avatar src={groupIconPreview || undefined} alt="Group icon preview" variant="rounded" sx={{ width: 56, height: 56, borderRadius: 2 }}>{groupIconFile ? null : <GroupsRoundedIcon />}</Avatar>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={750}>Group icon</Typography>
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" onClick={() => groupIconInputRef.current?.click()} disabled={creatingGroup}>Choose image</Button>
+                    {groupIconFile && <Button size="small" color="inherit" onClick={() => setGroupIconFile(null)} disabled={creatingGroup}>Remove</Button>}
+                  </Stack>
+                </Box>
+              </Stack>
               <TextField
                 autoFocus
                 fullWidth
-                required
                 label="Group name"
                 value={groupNameDraft}
                 onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 80))}
-                slotProps={{ htmlInput: { minLength: 2, maxLength: 80 } }}
+                helperText="Optional — leave the default name or enter your own."
+                slotProps={{ htmlInput: { maxLength: 80 } }}
               />
               <TextField
                 fullWidth
@@ -993,6 +1043,7 @@ const MessagesPage = () => {
                 label="About group"
                 value={groupAboutDraft}
                 onChange={(event) => setGroupAboutDraft(event.target.value.slice(0, 1000))}
+                helperText="Optional — defaults to Welcome Everyone."
                 slotProps={{ htmlInput: { maxLength: 1000 } }}
               />
               <Box>
@@ -1040,7 +1091,7 @@ const MessagesPage = () => {
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={closeGroupDialog} disabled={creatingGroup}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={creatingGroup || groupNameDraft.trim().length < 2}>
+            <Button type="submit" variant="contained" disabled={creatingGroup}>
               {creatingGroup ? <CircularProgress size={18} color="inherit" /> : 'Create group'}
             </Button>
           </DialogActions>
