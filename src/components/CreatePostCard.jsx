@@ -128,6 +128,9 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       isVideo: Boolean(videoFile),
       message: 'Checking your caption and selected media.',
     });
+    // Publishing continues in the shared status pill, so dismiss the composer as
+    // soon as the user starts. Keep the draft mounted in state for safe recovery.
+    setOpenModal(false);
     try {
       submittingRef.current = true;
       setSubmitting(true);
@@ -222,6 +225,9 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
               : status === 429 ? 'Too many upload attempts. Wait a minute, then retry.'
                 : status >= 500 || !status ? 'A network or storage issue interrupted publishing. Your video is still selected; retry safely.'
                   : (message || 'Failed to publish post. Please try again.'));
+      // If publishing fails, bring the composer back with its selected content so
+      // the user can understand the error and retry without rebuilding the draft.
+      setOpenModal(true);
       failPublishing(err.response?.data?.message || err.message || 'Publishing failed. Your content is still available to retry.', retryPublish);
     } finally {
       uploadControllerRef.current = null;
