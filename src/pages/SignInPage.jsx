@@ -66,7 +66,7 @@ const SignInPage = () => {
 
         {error && (
           <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2 }} onClose={() => setError(null)}>
-            {error}
+            {error} <Link to="/support/request" style={{ color: 'inherit', fontWeight: 700 }}>Need account help?</Link>
           </Alert>
         )}
 

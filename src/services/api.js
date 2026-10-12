@@ -27,6 +27,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 403 && error.response?.data?.code === 'ACCOUNT_RESTRICTED') {
+      const restriction = error.response.data.restriction;
+      localStorage.removeItem('nexora_token');
+      localStorage.removeItem('nexora_user');
+      window.dispatchEvent(new CustomEvent('auth:restricted', { detail: restriction }));
+    }
     // If unauthorized / token expired and not on public pages
     if (error.response && error.response.status === 401) {
       const isAuthRoute = window.location.pathname.includes('/signin') || window.location.pathname.includes('/signup');
@@ -59,6 +65,25 @@ export const authAPI = {
   updatePassword: (data) => api.put('/auth/updatepassword', data),
   requestPasswordReset: (email) => api.post('/auth/password-reset/request', { email }),
   completePasswordReset: (data) => api.post('/auth/password-reset/complete', data),
+  acknowledgeWarning: (warningId) => api.post(`/auth/warnings/${warningId}/acknowledge`),
+};
+
+export const adminAPI = {
+  overview: () => api.get('/admin/overview'),
+  users: (params) => api.get('/admin/users', { params }),
+  user: (id) => api.get(`/admin/users/${id}`),
+  userPosts: (id, params) => api.get(`/admin/users/${id}/posts`, { params }),
+  temporaryBan: (id, data) => api.post(`/admin/users/${id}/temporary-ban`, data),
+  permanentBan: (id, data) => api.post(`/admin/users/${id}/permanent-ban`, data),
+  liftBan: (id, data = {}) => api.post(`/admin/users/${id}/lift-ban`, data),
+  warning: (id, reason) => api.post(`/admin/users/${id}/warnings`, { reason }),
+  deleteUser: (id) => api.post(`/admin/users/${id}/delete`, { confirm: true }),
+  inbox: (type, params) => api.get(`/admin/${type}`, { params }),
+  updateInbox: (id, data) => api.patch(`/admin/inbox/${id}`, data),
+};
+
+export const supportAPI = {
+  submit: (data) => api.post('/support/requests', data),
 };
 
 // ================= USER APIs =================

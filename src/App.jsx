@@ -29,6 +29,9 @@ import MessagesPage from './pages/MessagesPage';
 import PostDetailsPage from './pages/PostDetailsPage';
 import SatisfiedGamesPage from './pages/SatisfiedGamesPage';
 import SatisfiedGamesPrompt from './components/SatisfiedGamesPrompt';
+import AdminPage from './pages/AdminPage';
+import SupportRequestPage from './pages/SupportRequestPage';
+import ModerationNoticeLayer from './components/ModerationNoticeLayer';
 
 const GhostCursor = React.lazy(() => import('./components/reactbits/GhostCursor'));
 
@@ -94,6 +97,7 @@ function App() {
               <Route element={<MainLayout />}>
                 <Route path="/" element={<RootRedirect />} />
                 <Route path="/satisfied-games" element={<SatisfiedGamesPage />} />
+                <Route path="/support/request" element={<SupportRequestPage />} />
               </Route>
 
               {/* Authentication Routes */}
@@ -122,9 +126,11 @@ function App() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
               </Route>
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
+            <ModerationNoticeLayer />
             <GlobalGhostCursor />
             <SatisfiedGamesPrompt />
             <PublishingStatusPill />
@@ -134,6 +140,11 @@ function App() {
       </AuthProvider>
     </ThemeContextProvider>
   );
+}
+
+function AdminRoute({ children }) {
+  const { user } = useAuth();
+  return user?.isAdmin ? children : <Navigate to="/home" replace />;
 }
 
 export default App;

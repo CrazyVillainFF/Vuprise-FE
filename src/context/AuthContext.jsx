@@ -17,6 +17,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [pendingWarnings, setPendingWarnings] = useState([]);
+  const [restriction, setRestriction] = useState(null);
 
   const clearWelcomeMessage = useCallback(() => setWelcomeMessage(''), []);
 
@@ -26,6 +28,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('nexora_user');
     setToken(null);
     setUser(null);
+    setPendingWarnings([]);
   }, []);
 
   useEffect(() => {
@@ -46,6 +49,7 @@ export const AuthProvider = ({ children }) => {
       const res = await authAPI.getMe();
       if (res.data.success && res.data.user) {
         setUser(res.data.user);
+        setPendingWarnings(res.data.pendingWarnings || []);
         localStorage.setItem('nexora_user', JSON.stringify(res.data.user));
       }
     } catch (err) {
@@ -61,8 +65,16 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for unauthorized events emitted by API interceptor
     const handleUnauthorized = () => logout();
+    const handleRestricted = (event) => {
+      setRestriction(event.detail || { status: 'permanent_ban' });
+      logout();
+    };
     window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    window.addEventListener('auth:restricted', handleRestricted);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+      window.removeEventListener('auth:restricted', handleRestricted);
+    };
   }, [checkAuth, logout]);
 
   // Login handler
@@ -77,12 +89,17 @@ export const AuthProvider = ({ children }) => {
 
       setToken(receivedToken);
       setUser(receivedUser);
+      setPendingWarnings(res.data.pendingWarnings || []);
+      setRestriction(null);
       setWelcomeMessage('Welcome back To Vuprise');
       return { success: true, user: receivedUser };
     } catch (err) {
+      if (err.response?.data?.code === 'ACCOUNT_RESTRICTED') setRestriction(err.response.data.restriction || { status: 'permanent_ban' });
       const msg = err.message || 'Login failed. Please check your credentials.';
       setAuthError(msg);
-      throw new Error(msg);
+      const loginError = new Error(msg);
+      loginError.response = err.response;
+      throw loginError;
     }
   };
 
@@ -98,6 +115,7 @@ export const AuthProvider = ({ children }) => {
 
       setToken(receivedToken);
       setUser(receivedUser);
+      setPendingWarnings(res.data.pendingWarnings || []);
       setWelcomeMessage('Welcome to Vuprise');
       return { success: true, user: receivedUser };
     } catch (err) {
@@ -116,12 +134,22 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const acknowledgeWarning = async (warningId) => {
+    await authAPI.acknowledgeWarning(warningId);
+    setPendingWarnings((items) => items.filter((warning) => warning._id !== warningId));
+  };
+  const dismissRestriction = () => setRestriction(null);
+
   const value = {
     user,
     token,
     loading,
     authError,
     welcomeMessage,
+    pendingWarnings,
+    restriction,
+    acknowledgeWarning,
+    dismissRestriction,
     clearWelcomeMessage,
     isAuthenticated: !!token && !!user,
     login,

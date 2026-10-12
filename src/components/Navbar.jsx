@@ -247,6 +247,11 @@ const Navbar = () => {
                   View Profile
                 </MenuItem>
 
+                {user?.isAdmin && <MenuItem onClick={() => { handleCloseMenu(); navigate('/admin'); }}>
+                  <SettingsOutlinedIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
+                  Admin console
+                </MenuItem>}
+
                 <MenuItem
                   onClick={() => {
                     handleCloseMenu();
