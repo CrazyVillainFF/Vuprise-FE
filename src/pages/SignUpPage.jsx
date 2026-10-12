@@ -11,7 +11,6 @@ import {
   IconButton,
   Alert,
   Divider,
-  CircularProgress,
   ToggleButton,
   ToggleButtonGroup
 } from '@mui/material';
@@ -23,6 +22,7 @@ import BusinessCenterOutlinedIcon from '@mui/icons-material/BusinessCenterOutlin
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { useAuth } from '../context/AuthContext';
+import StatusMark from '../components/reactbits/StatusMark';
 
 const MAX_COURSE_START_YEAR = new Date().getFullYear() + 10;
 
@@ -321,7 +321,7 @@ const SignUpPage = () => {
               disabled={submitting}
               sx={{ py: 1.25, fontSize: '0.95rem', mt: 1 }}
             >
-              {submitting ? <CircularProgress size={24} color="inherit" /> : 'Create Account'}
+              {submitting ? <StatusMark status="running" label="Creating account…" color="inherit" size={18} fontSize={14} /> : 'Create Account'}
             </Button>
           </Stack>
         </form>

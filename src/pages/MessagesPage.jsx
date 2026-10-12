@@ -131,7 +131,15 @@ const MessagesPage = () => {
   useEffect(() => () => stopTyping(), [stopTyping]);
 
   useEffect(() => subscribeRealtime((event) => {
-    if (event.type === 'presence') setPresenceByUser((current) => ({ ...current, [event.userId]: { state: event.state, lastSeenAt: event.lastSeenAt || null } }));
+    if (event.type === 'presence') setPresenceByUser((current) => ({
+      ...current,
+      [event.userId]: {
+        state: event.state,
+        // Keep the most recent timestamp when a presence update only changes
+        // online/offline state; older clients and privacy transitions may omit it.
+        lastSeenAt: event.state === 'hidden' ? null : event.lastSeenAt || current[event.userId]?.lastSeenAt || null,
+      },
+    }));
     if (event.type === 'typing') setTypingByScope((current) => {
       const key = `${event.scopeType}:${event.scopeId}`;
       const next = { ...(current[key] || {}) };

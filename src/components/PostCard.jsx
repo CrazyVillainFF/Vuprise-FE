@@ -36,6 +36,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { postAPI, commentAPI } from '../services/api';
 import { formatTimeAgo } from '../utils/formatters';
+import ReportDialog from './ReportDialog';
 
 const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
   const { user: currentUser, isAuthenticated } = useAuth();
@@ -63,6 +64,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   // Snackbar state
   const [toastMessage, setToastMessage] = useState(null);
@@ -260,7 +262,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             </Avatar>
           }
           action={
-            isAuthor ? (
+            isAuthor || isAuthenticated ? (
               <IconButton
                 size="small"
                 aria-label="Post options"
@@ -303,27 +305,35 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             spacing={0.5}
             sx={{ px: 1.5, py: 0.75, bgcolor: 'action.hover', borderTop: 1, borderColor: 'divider' }}
           >
-            <Button
+            {isAuthor ? <>
+              <Button
+                size="small"
+                startIcon={<EditOutlinedIcon fontSize="small" />}
+                onClick={() => {
+                  setAnchorEl(null);
+                  setIsEditing(true);
+                }}
+              >
+                Edit post
+              </Button>
+              <Button
+                size="small"
+                color="error"
+                startIcon={<DeleteOutlineRoundedIcon fontSize="small" />}
+                onClick={() => {
+                  setAnchorEl(null);
+                  setDeleteConfirmOpen(true);
+                }}
+              >
+                Delete post
+              </Button>
+            </> : <Button
               size="small"
-              startIcon={<EditOutlinedIcon fontSize="small" />}
-              onClick={() => {
-                setAnchorEl(null);
-                setIsEditing(true);
-              }}
+              color="warning"
+              onClick={() => { setAnchorEl(null); setReportOpen(true); }}
             >
-              Edit post
-            </Button>
-            <Button
-              size="small"
-              color="error"
-              startIcon={<DeleteOutlineRoundedIcon fontSize="small" />}
-              onClick={() => {
-                setAnchorEl(null);
-                setDeleteConfirmOpen(true);
-              }}
-            >
-              Delete post
-            </Button>
+              Report post
+            </Button>}
           </Stack>
         </Collapse>
 
@@ -668,6 +678,13 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
           {toastMessage}
         </Alert>
       </Snackbar>
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        reportedPost={post._id}
+        subject="Reported post"
+        onSubmitted={() => { setToastSeverity('success'); setToastMessage('Report submitted for review.'); }}
+      />
     </>
   );
 };

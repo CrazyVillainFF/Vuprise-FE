@@ -10,8 +10,7 @@ import {
   InputAdornment,
   IconButton,
   Alert,
-  Divider,
-  CircularProgress
+  Divider
 } from '@mui/material';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -19,6 +18,7 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useAuth } from '../context/AuthContext';
+import StatusMark from '../components/reactbits/StatusMark';
 
 const SignInPage = () => {
   const [email, setEmail] = useState('');
@@ -131,7 +131,7 @@ const SignInPage = () => {
               disabled={submitting}
               sx={{ py: 1.25, fontSize: '0.95rem' }}
             >
-              {submitting ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+              {submitting ? <StatusMark status="running" label="Signing in…" color="inherit" size={18} fontSize={14} /> : 'Sign In'}
             </Button>
           </Stack>
         </form>

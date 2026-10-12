@@ -48,6 +48,17 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { subscribeRealtime, watchPresence } from '../services/realtime';
 import SpotlightCard from '../components/reactbits/SpotlightCard';
+import ReportDialog from '../components/ReportDialog';
+
+const formatLastSeen = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+  return date.toDateString() === new Date().toDateString()
+    ? `Last seen today at ${time}`
+    : `Last seen ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)} at ${time}`;
+};
 
 const ProfilePage = () => {
   const { id } = useParams();
@@ -61,7 +72,7 @@ const ProfilePage = () => {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [postsError, setPostsError] = useState(null);
   const [error, setError] = useState(null);
-  const [presence, setPresence] = useState('unknown');
+  const [presence, setPresence] = useState({ state: 'unknown', lastSeenAt: null });
 
   // Upload modals
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -71,15 +82,18 @@ const ProfilePage = () => {
   const [accountMenuAnchor, setAccountMenuAnchor] = useState(null);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [blockActionLoading, setBlockActionLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const profileUserId = id || (currentUser ? currentUser._id : null);
   const isOwnProfile = currentUser && profileUserId === currentUser._id;
 
   useEffect(() => {
-    setPresence('unknown');
+    setPresence({ state: 'unknown', lastSeenAt: null });
     watchPresence(profileUserId ? [profileUserId] : []);
     return subscribeRealtime((event) => {
-      if (event.type === 'presence' && String(event.userId) === String(profileUserId)) setPresence(event.state);
+      if (event.type === 'presence' && String(event.userId) === String(profileUserId)) {
+        setPresence((current) => ({ state: event.state, lastSeenAt: event.state === 'hidden' ? null : event.lastSeenAt || current.lastSeenAt || null }));
+      }
     });
   }, [profileUserId]);
 
@@ -377,9 +391,9 @@ const ProfilePage = () => {
             <Typography variant="h6" color="text.secondary" fontWeight={500} sx={{ mt: 0.5, maxWidth: 720 }}>
               {getBrandedHeadline(profile.headline) || 'Professional at Vuprise'}
             </Typography>
-            {!isOwnProfile && (presence === 'online' || presence === 'offline') && <Stack direction="row" spacing={0.5} alignItems="center" role="status" sx={{ mt: 0.5 }}>
-              {presence === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: 'success.main' }} />}
-              <Typography variant="caption" color={presence === 'online' ? 'success.main' : 'text.secondary'}>{presence === 'online' ? 'Online' : 'Offline'}</Typography>
+            {!isOwnProfile && (presence.state === 'online' || presence.state === 'offline') && <Stack direction="row" spacing={0.5} alignItems="center" role="status" sx={{ mt: 0.5 }}>
+              {presence.state === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: 'success.main' }} />}
+              <Typography variant="caption" color={presence.state === 'online' ? 'success.main' : 'text.secondary'}>{presence.state === 'online' ? 'Online' : formatLastSeen(presence.lastSeenAt) || 'Offline'}</Typography>
             </Stack>}
 
             {/* Metadata Chips: Location, Company, Website */}
@@ -591,6 +605,7 @@ const ProfilePage = () => {
         </Alert>
       </Snackbar>
       <Menu anchorEl={accountMenuAnchor} open={Boolean(accountMenuAnchor)} onClose={() => setAccountMenuAnchor(null)}>
+        {!isOwnProfile && <MenuItem onClick={() => { setAccountMenuAnchor(null); setReportOpen(true); }} sx={{ color: 'warning.main' }}>Report profile</MenuItem>}
         {profile.isBlockedByViewer
           ? <MenuItem onClick={handleUnblockAccount} disabled={blockActionLoading}>Unblock {profile.name}</MenuItem>
           : <MenuItem
@@ -601,6 +616,13 @@ const ProfilePage = () => {
             Block {profile.name}
           </MenuItem>}
       </Menu>
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        reportedUser={profile._id}
+        subject="Reported profile"
+        onSubmitted={() => { setToastSeverity('success'); setToastMessage('Report submitted for review.'); }}
+      />
       <Dialog open={blockDialogOpen} onClose={() => !blockActionLoading && setBlockDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Block “{profile.name}”?</DialogTitle>
         <DialogContent>

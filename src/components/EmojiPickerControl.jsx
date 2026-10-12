@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { CircularProgress, IconButton, Popover, Tooltip, useMediaQuery } from '@mui/material';
+import { IconButton, Popover, Tooltip, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import SentimentSatisfiedAltRoundedIcon from '@mui/icons-material/SentimentSatisfiedAltRounded';
+import StatusMark from './reactbits/StatusMark';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
@@ -42,7 +43,7 @@ const EmojiPickerControl = ({ onSelect, disabled = false, label = 'Add emoji' })
         slotProps={{ paper: { sx: { overflow: 'hidden', borderRadius: 2 } } }}
       >
         {anchorEl && (
-          <Suspense fallback={<CircularProgress size={24} sx={{ display: 'block', m: 4 }} />}>
+          <Suspense fallback={<StatusMark status="running" label="Loading emoji picker…" size={22} style={{ margin: 24 }} />}>
             <EmojiPicker
               onEmojiClick={handleEmojiClick}
               autoFocusSearch={false}

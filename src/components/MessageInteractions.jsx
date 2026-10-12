@@ -22,7 +22,13 @@ export default function MessageInteractions({ message, scope, threadId, onReacti
         ? await groupAPI.toggleReaction(threadId, message._id, emoji)
         : await messageAPI.toggleReaction(threadId, message._id, emoji);
       onReactions?.(message._id, response.data.reactions || []);
-    } catch (err) { setError(err.response?.data?.message || 'Could not save this reaction.'); }
+    } catch (err) {
+      const message = err.response?.data?.message || '';
+      const missingReactionRoute = err.response?.status === 404 && /Resource not found.*\/reactions/i.test(message);
+      setError(missingReactionRoute
+        ? 'The active backend does not have the reaction route yet. Redeploy the latest Vuprise backend, then reload this chat.'
+        : message || 'Could not save this reaction.');
+    }
     finally { setBusy(false); }
   };
   const submitReport = async () => {
