@@ -1,1 +1,37 @@
-.pixel-swap{position:relative;display:block;width:100%;overflow:hidden;isolation:isolate;outline:none}.pixel-swap__content{position:absolute;inset:0;display:grid;place-items:center;transition:opacity .18s ease}.pixel-swap__incoming{opacity:0}.pixel-swap[data-active=true] .pixel-swap__content:first-child{opacity:0}.pixel-swap[data-active=true] .pixel-swap__incoming{opacity:1}.pixel-swap__tiles{position:absolute;inset:0;display:block;pointer-events:none}.pixel-swap__tile{position:absolute;background:currentColor;opacity:0;transform:scale(.35);transition-property:transform,opacity;transition-timing-function:cubic-bezier(.22,1,.36,1)}.pixel-swap[data-active=true] .pixel-swap__tile{opacity:.12;transform:scale(1)}@media(prefers-reduced-motion:reduce){.pixel-swap__content,.pixel-swap__tile{transition-duration:1ms!important;transition-delay:0ms!important}}
+.pixel-swap {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  outline: none;
+}
+
+.pixel-swap__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pixel-swap__layer[data-visible='false'] {
+  visibility: hidden;
+}
+
+.pixel-swap__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.pixel-swap__pixel {
+  position: absolute;
+  overflow: hidden;
+  opacity: 0;
+  contain: paint;
+}
+
+.pixel-swap__pixel-content {
+  position: absolute;
+}
