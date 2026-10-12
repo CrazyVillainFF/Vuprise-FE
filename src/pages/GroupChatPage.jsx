@@ -13,6 +13,7 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import EmojiPickerControl from '../components/EmojiPickerControl';
+import MessageInteractions from '../components/MessageInteractions';
 import { buildGroupMessagePayload } from '../utils/groupMessagePayload';
 import { useAuth } from '../context/AuthContext';
 import { connectionAPI, groupAPI } from '../services/api';
@@ -357,6 +358,7 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.67rem' }}>{formatTime(message.createdAt)}{message.editedAt ? ' · Edited' : ''}{message.pending ? ' · Sending' : ''}</Typography>
                 {!message.pending && !removed && own && message.text && <IconButton size="small" aria-label="Edit group message" onClick={() => { setMessageToEdit(message); setMessageEditDraft(message.text || ''); }} sx={{ p: 0.35 }}><EditRoundedIcon sx={{ fontSize: 15 }} /></IconButton>}
                 {!message.pending && <IconButton size="small" aria-label={own ? 'Delete group message' : 'Delete group message for me'} onClick={() => setMessageToDelete(message)} sx={{ p: 0.35, color: 'text.secondary' }}><DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} /></IconButton>}
+                {!message.pending && !removed && <MessageInteractions message={message} scope="group" threadId={groupId} canReport={!own} onReactions={(messageId, reactions) => setMessages((current) => current.map((item) => String(item._id) === String(messageId) ? { ...item, reactions } : item))} />}
               </Stack>
             </Box>
           </Box>;

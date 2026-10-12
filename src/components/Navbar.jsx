@@ -9,12 +9,12 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Badge,
   Button,
   Stack,
   Tooltip,
   Divider,
-  useMediaQuery
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { getBrandedHeadline } from '../utils/brandCopy';
@@ -35,11 +35,14 @@ import { useNotifications } from '../context/NotificationContext';
 import { useThemeMode } from '../theme/ThemeContext';
 import SearchBar from './SearchBar';
 import ReactableMark from './ReactableMark';
+import PixelSwap from './reactbits/PixelSwap';
+import PillNav from './reactbits/PillNav';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const { unreadCount, unreadMessageCount } = useNotifications();
   const { mode, toggleTheme } = useThemeMode();
+  const theme = useTheme();
   const compactHeader = useMediaQuery((theme) => theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,43 +129,7 @@ const Navbar = () => {
               >
                 <Box component="span" sx={{ display: { lg: 'none', xl: 'inline' } }}>Create post</Box>
               </Button>
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
-
-                return (
-                  <Button
-                    key={item.path}
-                    component={NavLink}
-                    to={item.path}
-                  aria-label={item.label}
-                    startIcon={
-                      item.badge > 0 ? (
-                        <Badge badgeContent={item.badge} color="error" max={99}>
-                          <Icon sx={{ fontSize: 20 }} />
-                        </Badge>
-                      ) : (
-                        <Icon sx={{ fontSize: 20 }} />
-                      )
-                    }
-                    sx={{
-                      color: isActive ? 'primary.main' : 'text.secondary',
-                      bgcolor: isActive ? 'action.selected' : 'transparent',
-                      px: { lg: 1, xl: 1.5 },
-                      py: 1,
-                      minWidth: { lg: 42, xl: 'auto' },
-                      fontWeight: isActive ? 700 : 500,
-                      borderRadius: 2.5,
-                      '&:hover': {
-                        bgcolor: 'action.hover',
-                        color: 'primary.main',
-                      },
-                    }}
-                  >
-                    <Box component="span" sx={{ display: { lg: 'none', xl: 'inline' } }}>{item.label}</Box>
-                  </Button>
-                );
-              })}
+              <PillNav items={navItems.map((item) => ({ href: item.path, label: item.label, icon: item.icon, badge: item.badge }))} activeHref={location.pathname} baseColor={theme.palette.text.secondary} pillColor={theme.palette.action.selected} hoveredPillTextColor={theme.palette.primary.main} pillTextColor={theme.palette.text.secondary} />
             </Stack>
           ) : (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', display: { xs: 'none', sm: 'flex' } }}>
@@ -177,8 +144,20 @@ const Navbar = () => {
 
           {/* Theme Switcher */}
           <Tooltip title={mode === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}>
-            <IconButton onClick={toggleTheme} color="inherit" sx={{ ml: { xs: 0, sm: 0.5 }, flexShrink: 0 }}>
-              {mode === 'light' ? <DarkModeOutlinedIcon fontSize="small" /> : <LightModeOutlinedIcon fontSize="small" />}
+            <IconButton onClick={toggleTheme} color="inherit" aria-label={mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} sx={{ ml: { xs: 0, sm: 0.5 }, flexShrink: 0 }}>
+              <PixelSwap
+                firstContent={<LightModeOutlinedIcon fontSize="small" />}
+                secondContent={<DarkModeOutlinedIcon fontSize="small" />}
+                pixelSize={8}
+                duration={320}
+                pixelDuration={220}
+                pattern="diagonal"
+                randomness={0.08}
+                active={mode === 'dark'}
+                trigger="manual"
+                aspectRatio="1 / 1"
+                style={{ width: 22, height: 22 }}
+              />
             </IconButton>
           </Tooltip>
 

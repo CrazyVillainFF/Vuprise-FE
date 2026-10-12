@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
-import { Box, CircularProgress, useMediaQuery } from '@mui/material';
+import { Box, useMediaQuery } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { PublishingProvider } from './context/PublishingContext';
@@ -32,6 +32,7 @@ import SatisfiedGamesPrompt from './components/SatisfiedGamesPrompt';
 import AdminPage from './pages/AdminPage';
 import SupportRequestPage from './pages/SupportRequestPage';
 import ModerationNoticeLayer from './components/ModerationNoticeLayer';
+import StatusMark from './components/reactbits/StatusMark';
 
 const GhostCursor = React.lazy(() => import('./components/reactbits/GhostCursor'));
 
@@ -72,8 +73,8 @@ const RootRedirect = () => {
   if (isAuthenticated) return <Navigate to="/home" replace />;
   if (loading) {
     return (
-      <Box sx={{ minHeight: '55dvh', display: 'grid', placeItems: 'center' }}>
-        <CircularProgress aria-label="Loading Vuprise" />
+      <Box sx={{ minHeight: '55dvh', display: 'grid', placeItems: 'center', color: 'primary.main' }}>
+        <StatusMark status="running" label="Loading Vuprise" color="primary.main" size={22} />
       </Box>
     );
   }

@@ -162,6 +162,7 @@ export const groupAPI = {
   sendMessage: (id, data) => api.post(`/groups/${id}/messages`, data, { headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
   updateMessage: (id, messageId, text) => api.put(`/groups/${id}/messages/${messageId}`, { text }),
   deleteMessage: (id, messageId, scope) => api.delete(`/groups/${id}/messages/${messageId}`, { params: { scope } }),
+  toggleReaction: (id, messageId, emoji) => api.put(`/groups/${id}/messages/${messageId}/reactions`, { emoji }),
 };
 
 // ================= NOTIFICATION APIs =================
@@ -185,6 +186,7 @@ export const messageAPI = {
   getMessages: (conversationId) => api.get(`/messages/conversations/${conversationId}/messages`),
   deleteMessage: (conversationId, messageId, scope) => api.delete(`/messages/conversations/${conversationId}/messages/${messageId}`, { params: { scope } }),
   updateMessage: (conversationId, messageId, text) => api.put(`/messages/conversations/${conversationId}/messages/${messageId}`, { text }),
+  toggleReaction: (conversationId, messageId, emoji) => api.put(`/messages/conversations/${conversationId}/messages/${messageId}/reactions`, { emoji }),
   sendMessage: (conversationId, payload) => api.post(`/messages/conversations/${conversationId}/messages`, payload, { headers: payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
   syncLegacyMessages: (conversationId, messages) => api.post(`/messages/conversations/${conversationId}/messages/sync-legacy`, { messages }),
 };

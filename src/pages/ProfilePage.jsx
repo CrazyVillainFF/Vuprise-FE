@@ -38,6 +38,7 @@ import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordR
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 
 import { useAuth } from '../context/AuthContext';
+import { useThemeMode } from '../theme/ThemeContext';
 import { userAPI, postAPI } from '../services/api';
 import ConnectionButton from '../components/ConnectionButton';
 import PostCard from '../components/PostCard';
@@ -46,10 +47,12 @@ import { ProfileHeaderSkeleton, PostSkeleton } from '../components/LoadingSkelet
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { subscribeRealtime, watchPresence } from '../services/realtime';
+import SpotlightCard from '../components/reactbits/SpotlightCard';
 
 const ProfilePage = () => {
   const { id } = useParams();
   const { user: currentUser, updateUser, isAuthenticated } = useAuth();
+  const { mode } = useThemeMode();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState(null);
@@ -235,7 +238,8 @@ const ProfilePage = () => {
   return (
     <Container maxWidth="lg">
       {/* Cover and Main Profile Card */}
-      <Card sx={{ mb: 3, overflow: 'hidden', position: 'relative' }}>
+      <SpotlightCard theme={mode} spotlightColor="113,216,240" intensity={0.16} spotlightSize={280} borderGlow={0.7} proximity={0} smoothing={0.18} style={{ padding: 0, borderRadius: 16, marginBottom: 24 }}>
+      <Card sx={{ mb: 0, overflow: 'hidden', position: 'relative', bgcolor: 'transparent', boxShadow: 'none' }}>
         {/* Cover Banner */}
         <Box
           sx={{
@@ -417,6 +421,7 @@ const ProfilePage = () => {
           </Box>
         </Box>
       </Card>
+      </SpotlightCard>
 
       {/* Main Grid: Details on Left, Side Details on Right */}
       <Grid container spacing={3}>

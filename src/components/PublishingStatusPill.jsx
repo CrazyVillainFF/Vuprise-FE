@@ -1,10 +1,12 @@
 import React from 'react';
-import { Alert, Box, Button, CircularProgress, Collapse, IconButton, LinearProgress, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Collapse, IconButton, LinearProgress, Paper, Stack, Typography } from '@mui/material';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { usePublishing } from '../context/PublishingContext';
+import StatusMark from './reactbits/StatusMark';
+import Stepper, { Step } from './reactbits/Stepper';
 
 const stageLabel = (stage) => ({
   preparing: 'Preparing post',
@@ -60,7 +62,7 @@ const PublishingStatusPill = () => {
           sx={{ display: 'flex', alignItems: 'center', gap: 1.1, minWidth: 0, flex: 1, p: .5, border: 0, bgcolor: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 999, '&:focus-visible': { outline: '3px solid', outlineColor: 'primary.main', outlineOffset: 2 } }}
         >
           <Box sx={{ width: 34, height: 34, flex: '0 0 34px', borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: status.stage === 'failed' ? 'error.light' : 'action.hover', color: status.stage === 'failed' ? 'error.dark' : 'primary.main' }}>
-            {isActive && status.stage !== 'uploading' ? <CircularProgress size={19} color="inherit" aria-label={stageLabel(status.stage)} /> : <Icon fontSize="small" />}
+            {isActive ? <StatusMark status="running" progress={status.stage === 'uploading' && status.progress != null ? status.progress / 100 : undefined} label={stageLabel(status.stage)} size={20} fontSize={0} /> : status.stage === 'published' ? <StatusMark status="done" size={21} /> : status.stage === 'failed' ? <StatusMark status="failed" size={21} /> : <Icon fontSize="small" />}
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="body2" fontWeight={700} noWrap>{stageLabel(status.stage)}</Typography>
@@ -81,6 +83,7 @@ const PublishingStatusPill = () => {
       )}
       <Collapse in={status.expanded}>
         <Box sx={{ px: 2, pb: 1.5, pt: .5 }}>
+          {status.stage !== 'failed' && <Stepper step={status.stage === 'preparing' ? 1 : status.stage === 'uploading' ? 2 : status.stage === 'published' ? 4 : 3} accentColor="#71d8f0" theme="dark" style={{ marginBottom: 8 }}><Step title="Preparing"/><Step title="Uploading"/><Step title="Publishing"/><Step title="Published"/></Stepper>}
           <Stack direction="row" spacing={1.25} alignItems="center">
             {status.previewUrl && <Box component={status.isVideo ? 'video' : 'img'} src={status.previewUrl} muted playsInline aria-label="Selected media preview" sx={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 1.5, bgcolor: 'action.hover' }} />}
             <Box sx={{ minWidth: 0 }}>

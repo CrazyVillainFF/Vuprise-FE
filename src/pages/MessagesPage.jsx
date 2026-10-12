@@ -27,8 +27,16 @@ import Badge from '@mui/material/Badge';
 import TypingIndicator from '../components/TypingIndicator';
 import { sendTyping, subscribeRealtime, watchPresence } from '../services/realtime';
 import GroupChatPanel from './GroupChatPage';
+import MessageInteractions from '../components/MessageInteractions';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
+const formatLastSeen = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+  return date.toDateString() === new Date().toDateString() ? `Last seen today at ${time}` : `Last seen ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)} at ${time}`;
+};
 const formatConversationTime = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -123,7 +131,7 @@ const MessagesPage = () => {
   useEffect(() => () => stopTyping(), [stopTyping]);
 
   useEffect(() => subscribeRealtime((event) => {
-    if (event.type === 'presence') setPresenceByUser((current) => ({ ...current, [event.userId]: event.state }));
+    if (event.type === 'presence') setPresenceByUser((current) => ({ ...current, [event.userId]: { state: event.state, lastSeenAt: event.lastSeenAt || null } }));
     if (event.type === 'typing') setTypingByScope((current) => {
       const key = `${event.scopeType}:${event.scopeId}`;
       const next = { ...(current[key] || {}) };
@@ -837,7 +845,7 @@ const MessagesPage = () => {
                           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
                         }}
                       >
-                        <ListItemAvatar sx={{ minWidth: 62 }}><Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[contact._id] !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
+                        <ListItemAvatar sx={{ minWidth: 62 }}><Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[contact._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
                         <ListItemText
                           primary={conversation?.displayName || contact.name || 'Vuprise member'}
                           secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
@@ -847,7 +855,7 @@ const MessagesPage = () => {
                           secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                         />
                         <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
-                          {['online', 'offline'].includes(presenceByUser[contact._id]) && <Typography variant="caption" color={presenceByUser[contact._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[contact._id] === 'online' ? 'Online' : 'Offline'}</Typography>}
+                          {presenceByUser[contact._id]?.state === 'online' && <Typography variant="caption" color="success.main" noWrap>Online</Typography>}
                           {hasMessages && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(conversation.lastMessageAt || conversation.lastMessage.createdAt)}</Typography>}
                           {unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}
                         </Stack>
@@ -888,17 +896,17 @@ const MessagesPage = () => {
                     aria-label={`View ${active.peer.name || 'user'}'s profile`}
                     sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, minWidth: 0, flex: 1, borderRadius: 2, textAlign: 'left', p: 0.5, ml: -0.5, '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}
                   >
-                    <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id] !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
+                    <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="subtitle1" fontWeight={700} noWrap>{active.displayName || active.peer.name}</Typography>
-                      <Typography variant="caption" color={presenceByUser[active.peer._id] === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[active.peer._id] === 'online' ? 'Online' : presenceByUser[active.peer._id] === 'offline' ? 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
+                      <Typography variant="caption" color={presenceByUser[active.peer._id]?.state === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[active.peer._id]?.state === 'online' ? 'Online' : presenceByUser[active.peer._id]?.state === 'offline' ? formatLastSeen(presenceByUser[active.peer._id]?.lastSeenAt) || 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
                     </Box>
                   </ButtonBase>
                 </Stack>
                 <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 1.5, sm: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.25, bgcolor: 'background.default' }} aria-live="polite" aria-label={`Conversation with ${active.peer.name}`}>
                   {loadingMessages && !messages.length ? <Stack spacing={1.25} sx={{ width: 'min(90%, 440px)', alignSelf: 'center', mt: 3 }}><Skeleton variant="rounded" width="62%" height={42} /><Skeleton variant="rounded" width="74%" height={42} sx={{ alignSelf: 'flex-end' }} /><Skeleton variant="rounded" width="55%" height={42} /></Stack> : null}
                   {messages.map((message) => {
-                    const ownMessage = message.sender.toString() === user._id.toString();
+                    const ownMessage = String(message.sender?._id || message.sender) === String(user._id);
                     const readByPeer = message.readBy?.some((id) => id.toString() === active.peer._id.toString());
                     const removedForEveryone = message.deletedForEveryone;
                     return (
@@ -919,6 +927,7 @@ const MessagesPage = () => {
                             <>
                               {ownMessage && !removedForEveryone && !message.ciphertext && typeof message.text === 'string' && Boolean(message.text) && <IconButton size="small" aria-label="Edit message" onClick={() => { setMessageToEdit(message); setMessageEditDraft(message.text || ''); }} sx={{ p: 0.35 }}><EditRoundedIcon sx={{ fontSize: 17 }} /></IconButton>}
                               <IconButton size="small" aria-label="Delete message" onClick={() => setMessageToDelete(message)} sx={{ p: 0.35, color: 'error.light' }}><DeleteOutlineRoundedIcon sx={{ fontSize: 17 }} /></IconButton>
+                              {!removedForEveryone && <MessageInteractions message={message} scope="direct" threadId={active._id} canReport={!ownMessage} onReactions={(messageId, reactions) => setMessages((current) => current.map((item) => String(item._id) === String(messageId) ? { ...item, reactions } : item))} />}
                             </>
                           )}
                         </Stack>

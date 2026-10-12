@@ -8,8 +8,6 @@ import {
   Box,
   Button,
   Divider,
-  Switch,
-  FormControlLabel,
   Alert,
   CircularProgress,
   Snackbar
@@ -28,6 +26,7 @@ import { getDeviceKeyPair, saveDeviceKeyPair } from '../utils/e2ee';
 import { createEncryptedKeyBackup, restoreEncryptedKeyBackup } from '../utils/keyBackup';
 import PasswordTextField from '../components/PasswordTextField';
 import { isVerifiedAccount } from '../utils/verification';
+import SquishSwitch from '../components/reactbits/SquishSwitch';
 
 const SettingsPage = () => {
   const { user, logout, updateUser } = useAuth();
@@ -117,8 +116,7 @@ const SettingsPage = () => {
     }
   };
 
-  const handlePrivateAccountChange = async (event) => {
-    const privateAccount = event.target.checked;
+  const handlePrivateAccountChange = async (privateAccount) => {
     try {
       setSavingPrivacy(true);
       setPrivacyError(null);
@@ -132,8 +130,7 @@ const SettingsPage = () => {
     }
   };
 
-  const handleHideActivityChange = async (event) => {
-    const hideActivity = event.target.checked;
+  const handleHideActivityChange = async (hideActivity) => {
     try {
       setSavingHideActivity(true);
       setPrivacyError(null);
@@ -334,11 +331,7 @@ const SettingsPage = () => {
                 Only your accepted connections can see your posts.
               </Typography>
             </Box>
-            <FormControlLabel
-              label={user?.privateAccount ? 'On' : 'Off'}
-              control={<Switch checked={Boolean(user?.privateAccount)} onChange={handlePrivateAccountChange} disabled={savingPrivacy} inputProps={{ 'aria-label': 'Private Account' }} />}
-              sx={{ m: 0, flexShrink: 0 }}
-            />
+            <Stack direction="row" alignItems="center" gap={1.5} sx={{ flexShrink: 0 }}><Typography variant="body2" color="text.secondary">{user?.privateAccount ? 'On' : 'Off'}</Typography><SquishSwitch checked={Boolean(user?.privateAccount)} onChange={handlePrivateAccountChange} disabled={savingPrivacy} aria-label="Private Account" /></Stack>
           </Stack>
           {privacyError && <Alert severity="error" sx={{ mt: 2 }}>{privacyError}</Alert>}
         </Card>
@@ -349,11 +342,7 @@ const SettingsPage = () => {
               <Typography variant="h6" fontWeight={700}>Hide Activity</Typography>
               <Typography variant="body2" color="text.secondary">Hide your online and offline status from other users.</Typography>
             </Box>
-            <FormControlLabel
-              label={user?.hideActivity ? 'On' : 'Off'}
-              control={<Switch checked={Boolean(user?.hideActivity)} onChange={handleHideActivityChange} disabled={savingHideActivity} inputProps={{ 'aria-label': 'Hide Activity' }} />}
-              sx={{ m: 0, flexShrink: 0 }}
-            />
+            <Stack direction="row" alignItems="center" gap={1.5} sx={{ flexShrink: 0 }}><Typography variant="body2" color="text.secondary">{user?.hideActivity ? 'On' : 'Off'}</Typography><SquishSwitch checked={Boolean(user?.hideActivity)} onChange={handleHideActivityChange} disabled={savingHideActivity} aria-label="Hide Activity" /></Stack>
           </Stack>
           {privacyError && <Alert severity="error" sx={{ mt: 2 }}>{privacyError}</Alert>}
         </Card>
