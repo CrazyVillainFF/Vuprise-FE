@@ -28,9 +28,14 @@ export const ThemeContextProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('nexora_theme_mode', mode);
-    // Update body background color directly to prevent flashing during transitions
-    document.body.style.backgroundColor = mode === 'light' ? '#F8FAFC' : '#0B0F19';
-    document.body.style.color = mode === 'light' ? '#0F172A' : '#F8FAFC';
+    // Keep non-MUI effects and native controls in sync with the persisted theme.
+    document.documentElement.dataset.theme = mode;
+    document.documentElement.style.colorScheme = mode;
+    document.documentElement.style.setProperty('--app-bg', mode === 'light' ? '#FFFFFF' : '#000000');
+    document.documentElement.style.setProperty('--app-fg', mode === 'light' ? '#000000' : '#FFFFFF');
+    document.documentElement.style.setProperty('--app-fg-rgb', mode === 'light' ? '0, 0, 0' : '255, 255, 255');
+    document.body.style.backgroundColor = mode === 'light' ? '#FFFFFF' : '#000000';
+    document.body.style.color = mode === 'light' ? '#000000' : '#FFFFFF';
   }, [mode]);
 
   const theme = useMemo(() => createAppTheme(mode), [mode]);

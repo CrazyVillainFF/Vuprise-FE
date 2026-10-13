@@ -132,7 +132,7 @@ const ConnectionButton = ({
     return (
       <Stack spacing={0.75} sx={{ minWidth: 0 }}>
         <Tooltip title="Click to cancel pending invitation">
-          <Button size={size} variant="outlined" color="inherit" onClick={handleRejectOrRemove} startIcon={<HourglassEmptyRoundedIcon />} sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'error.main', color: 'error.main', bgcolor: 'rgba(239, 68, 68, 0.05)' }, ...sx }}>
+          <Button size={size} variant="outlined" color="inherit" onClick={handleRejectOrRemove} startIcon={<HourglassEmptyRoundedIcon />} sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'text.primary', color: 'text.primary', bgcolor: 'action.hover' }, ...sx }}>
             Pending
           </Button>
         </Tooltip>

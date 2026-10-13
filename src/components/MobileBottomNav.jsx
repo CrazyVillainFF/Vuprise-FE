@@ -47,7 +47,7 @@ const MobileBottomNav = () => {
           backdropFilter: 'blur(12px)',
           bgcolor: (theme) => theme.palette.mode === 'light'
             ? 'rgba(255, 255, 255, 0.94)'
-            : 'rgba(17, 24, 39, 0.94)',
+            : 'rgba(0, 0, 0, 0.94)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
         elevation={8}

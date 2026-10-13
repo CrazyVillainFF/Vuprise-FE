@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import './BorderGlow.css';
 
-export default function BorderGlow({ children, className = '', edgeSensitivity = 30, glowColor = '40 80 80', borderRadius = 14, glowRadius = 20, glowIntensity = 1, coneSpread = 25, colors = ['#71d8f0', '#8b5cf6', '#38bdf8'], backgroundColor = 'transparent' }) {
+export default function BorderGlow({ children, className = '', edgeSensitivity = 30, glowColor = '0 0 100', borderRadius = 14, glowRadius = 20, glowIntensity = 1, coneSpread = 25, colors = ['rgba(var(--app-fg-rgb),.72)', 'rgba(var(--app-fg-rgb),.32)', 'rgba(var(--app-fg-rgb),.12)'], backgroundColor = 'transparent' }) {
   const ref = useRef(null);
   const move = (event) => {
     const node = ref.current; if (!node) return;

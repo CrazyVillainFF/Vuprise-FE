@@ -4,7 +4,7 @@ import './StatusMark.css';
 
 const labels = { pending: 'Pending', running: 'In progress', done: 'Completed', failed: 'Failed', cancelled: 'Cancelled' };
 
-export default function StatusMark({ status = 'pending', progress, label, color = 'currentColor', doneColor = '#22c55e', errorColor = '#ef4444', size = 20, strokeWidth = 2, fontSize = 14, spinDuration = 1.1, className = '', style }) {
+export default function StatusMark({ status = 'pending', progress, label, color = 'currentColor', doneColor = 'currentColor', errorColor = 'currentColor', size = 20, strokeWidth = 2, fontSize = 14, spinDuration = 1.1, className = '', style }) {
   const reduced = useReducedMotion();
   const rotation = useMotionValue(0);
   const determinate = status === 'running' && Number.isFinite(progress);

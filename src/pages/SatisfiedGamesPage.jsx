@@ -11,6 +11,7 @@ const BinaryOrbits = lazy(() => import('../components/games/BinaryOrbits'));
 import ShatterType from '../components/games/ShatterType';
 import StardustCursor from '../components/games/StardustCursor';
 import GameArtwork from '../components/games/GameArtwork';
+import { useThemeMode } from '../theme/ThemeContext';
 import './SatisfiedGamesPage.css';
 
 const GAMES = [
@@ -20,9 +21,9 @@ const GAMES = [
 ];
 
 const DEFAULTS = {
-  'binary-orbits': { arms: 3, speed: 0.75, density: 1, color: '#7B4DFF', core: '#FFC2EE', starSize: 1.7, intensity: 1, starShape: 'round', tilt: 62, twist: 3.5, armStrength: 0.5, sparkle: 0.5, dust: 0.5, coreSize: 0.14, innerVoid: 0, roll: -8, scale: 1, pointerStrength: 1 },
-  'shatter-type': { text: 'Make your mark', frontColor: '#f4f4fb', shardColor: '#9a6bff', speed: 1, size: 68, intensity: 0.8, shardSize: 22 },
-  'stardust-cursor': { color: '#B497CF', secondColor: '#9a6bff', speed: 1, density: 1, size: 2.4, intensity: 1, trailLength: 50, puffSize: 1 },
+  'binary-orbits': { arms: 3, speed: 0.75, density: 1, color: '#FFFFFF', core: '#FFFFFF', starSize: 1.7, intensity: 1, starShape: 'round', tilt: 62, twist: 3.5, armStrength: 0.5, sparkle: 0.5, dust: 0.5, coreSize: 0.14, innerVoid: 0, roll: -8, scale: 1, pointerStrength: 1 },
+  'shatter-type': { text: 'Make your mark', frontColor: '#FFFFFF', shardColor: '#FFFFFF', speed: 1, size: 68, intensity: 0.8, shardSize: 22 },
+  'stardust-cursor': { color: '#FFFFFF', secondColor: '#FFFFFF', speed: 1, density: 1, size: 2.4, intensity: 1, trailLength: 50, puffSize: 1 },
 };
 
 const readSettings = () => {
@@ -41,12 +42,17 @@ const FieldSlider = ({ label, value, min, max, step, onChange }) => (
 
 const SatisfiedGamesPage = () => {
   const navigate = useNavigate();
+  const { mode } = useThemeMode();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [activeGame, setActiveGame] = useState('binary-orbits');
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(readSettings);
   const game = GAMES.find(({ id }) => id === activeGame) || GAMES[0];
-  const settings = useMemo(() => ({ ...DEFAULTS[activeGame], ...(saved[activeGame] || {}) }), [activeGame, saved]);
+  const settings = useMemo(() => {
+    const adjustments = { ...(saved[activeGame] || {}) };
+    ['color', 'colors', 'core', 'frontColor', 'shardColor', 'secondColor'].forEach((key) => delete adjustments[key]);
+    return { ...DEFAULTS[activeGame], ...adjustments };
+  }, [activeGame, saved]);
 
   const update = (key, value) => setSaved((previous) => {
     const next = { ...previous, [activeGame]: { ...DEFAULTS[activeGame], ...(previous[activeGame] || {}), [key]: value } };
@@ -82,9 +88,9 @@ const SatisfiedGamesPage = () => {
         <Box className="satisfied-stage" role="tabpanel" aria-label={`${game.name} preview`}>
           <span className="satisfied-stage__eyebrow"><AutoAwesomeRoundedIcon fontSize="small" /> LIVE PREVIEW</span>
           <Button className="satisfied-edit-toggle" variant="outlined" size="small" startIcon={editing ? <CloseRoundedIcon /> : <EditRoundedIcon />} onClick={() => setEditing((value) => !value)} aria-expanded={editing} aria-controls="satisfied-game-editor">{editing ? 'Done' : 'Edit'}</Button>
-          {activeGame === 'binary-orbits' && <Suspense fallback={null}><BinaryOrbits {...settings} reducedMotion={reducedMotion} /></Suspense>}
-          {activeGame === 'shatter-type' && <ShatterType key={JSON.stringify(settings)} {...settings} reducedMotion={reducedMotion} />}
-          {activeGame === 'stardust-cursor' && <StardustCursor {...settings} reducedMotion={reducedMotion} />}
+          {activeGame === 'binary-orbits' && <Suspense fallback={null}><BinaryOrbits {...settings} color={mode === 'dark' ? '#FFFFFF' : '#000000'} core={mode === 'dark' ? '#FFFFFF' : '#000000'} backgroundColor={mode === 'dark' ? '#000000' : '#FFFFFF'} reducedMotion={reducedMotion} /></Suspense>}
+          {activeGame === 'shatter-type' && <ShatterType key={JSON.stringify(settings)} {...settings} frontColor={mode === 'dark' ? '#FFFFFF' : '#000000'} shardColor={mode === 'dark' ? '#FFFFFF' : '#000000'} reducedMotion={reducedMotion} />}
+          {activeGame === 'stardust-cursor' && <StardustCursor {...settings} color={mode === 'dark' ? '#FFFFFF' : '#000000'} secondColor={mode === 'dark' ? '#FFFFFF' : '#000000'} reducedMotion={reducedMotion} />}
         </Box>
 
         {editing && <Box className="satisfied-controls" id="satisfied-game-editor">
@@ -110,7 +116,6 @@ const SatisfiedGamesPage = () => {
             <FieldSlider label="Galaxy scale" value={settings.scale} min={0.5} max={1.5} step={0.05} onChange={(v) => update('scale', v)} />
             <FieldSlider label="Pointer response" value={settings.pointerStrength ?? 1} min={0.2} max={2} step={0.1} onChange={(v) => update('pointerStrength', v)} />
             <label className="satisfied-select">Star shape<select value={settings.starShape} onChange={(e) => update('starShape', e.target.value)}><option value="round">Round</option><option value="diamond">Diamond</option><option value="square">Square</option><option value="cross">Cross</option></select></label>
-            <Stack direction="row" spacing={2}><label className="satisfied-color">Arm color<input type="color" value={settings.color} onChange={(e) => update('color', e.target.value)} /></label><label className="satisfied-color">Core color<input type="color" value={settings.core} onChange={(e) => update('core', e.target.value)} /></label></Stack>
           </Stack>}
           {activeGame === 'shatter-type' && <Stack spacing={1.5}>
             <TextField size="small" label="Headline" value={settings.text} inputProps={{ maxLength: 28 }} onChange={(e) => update('text', e.target.value)} />
@@ -118,7 +123,6 @@ const SatisfiedGamesPage = () => {
             <FieldSlider label="Shatter speed" value={settings.speed} min={0.5} max={2} step={0.1} onChange={(v) => update('speed', v)} />
             <FieldSlider label="Shard size" value={settings.shardSize} min={12} max={38} step={1} onChange={(v) => update('shardSize', v)} />
             <FieldSlider label="Effect intensity" value={settings.intensity} min={0.2} max={1.8} step={0.1} onChange={(v) => update('intensity', v)} />
-            <Stack direction="row" spacing={2}><label className="satisfied-color">Text color<input type="color" value={settings.frontColor} onChange={(e) => update('frontColor', e.target.value)} /></label><label className="satisfied-color">Shard color<input type="color" value={settings.shardColor} onChange={(e) => update('shardColor', e.target.value)} /></label></Stack>
           </Stack>}
           {activeGame === 'stardust-cursor' && <Stack spacing={1.5}>
             <FieldSlider label="Trail length" value={settings.trailLength} min={12} max={110} step={2} onChange={(v) => update('trailLength', v)} />
@@ -129,7 +133,6 @@ const SatisfiedGamesPage = () => {
             <FieldSlider label="Glow intensity" value={settings.intensity} min={0.2} max={2} step={0.1} onChange={(v) => update('intensity', v)} />
             <FieldSlider label="Wake softness" value={settings.softness ?? 0.7} min={0.2} max={1} step={0.05} onChange={(v) => update('softness', v)} />
             <FieldSlider label="Air drift" value={settings.drift ?? 0.5} min={0} max={1.5} step={0.1} onChange={(v) => update('drift', v)} />
-            <Stack direction="row" spacing={2}><label className="satisfied-color">Primary dust<input type="color" value={settings.color} onChange={(e) => update('color', e.target.value)} /></label><label className="satisfied-color">Secondary dust<input type="color" value={settings.secondColor} onChange={(e) => update('secondColor', e.target.value)} /></label></Stack>
           </Stack>}
           {reducedMotion && <Alert severity="info" sx={{ mt: 2 }}>Reduced motion is enabled. The preview stays still; controls remain available.</Alert>}
         </Box>}

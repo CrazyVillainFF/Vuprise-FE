@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supportAPI } from '../services/api';
+import EvidencePhotoPicker from '../components/EvidencePhotoPicker';
 
 const requestTypes = [
   ['temporary_ban_appeal', 'Temporary ban appeal'],
@@ -17,10 +18,16 @@ export default function SupportRequestPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [evidenceFiles, setEvidenceFiles] = useState([]);
   const change = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const submit = async (event) => {
     event.preventDefault(); setError(''); setBusy(true);
-    try { await supportAPI.submit(form); setSent(true); }
+    try {
+      const payload = new FormData();
+      Object.entries(form).forEach(([key, value]) => payload.append(key, value));
+      evidenceFiles.forEach((file) => payload.append('evidence', file));
+      await supportAPI.submit(payload); setSent(true);
+    }
     catch (e) { setError(e.message || 'Could not send your request. Please try again later.'); }
     finally { setBusy(false); }
   };
@@ -37,6 +44,7 @@ export default function SupportRequestPage() {
         {form.type === 'report' && <><TextField label="Report category" value={form.category} onChange={change('category')} inputProps={{ maxLength: 80 }}/><TextField label="Reported user ID (optional)" value={form.reportedUser} onChange={change('reportedUser')} inputProps={{ maxLength: 24 }}/><TextField label="Reported post ID (optional)" value={form.reportedPost} onChange={change('reportedPost')} inputProps={{ maxLength: 24 }}/><Typography variant="caption" color="text.secondary">Do not include private message or chat content in a report.</Typography></>}
         <TextField label="Subject" value={form.subject} onChange={change('subject')} required inputProps={{ minLength: 3, maxLength: 160 }}/>
         <TextField label="Message" value={form.message} onChange={change('message')} required multiline minRows={5} inputProps={{ minLength: 10, maxLength: 5000 }}/>
+        <EvidencePhotoPicker files={evidenceFiles} onChange={setEvidenceFiles} disabled={busy}/>
         <TextField label="Website" value={form.website} onChange={change('website')} autoComplete="off" tabIndex={-1} sx={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} inputProps={{ 'aria-hidden': true }}/>
         <Typography variant="caption" color="text.secondary">Submissions are rate-limited. Deleted accounts cannot be restored through this form.</Typography>
         <Stack direction="row" justifyContent="flex-end" gap={1}><Button component={Link} to="/signin">Cancel</Button><Button type="submit" variant="contained" disabled={busy}>{busy ? 'Sending…' : 'Send request'}</Button></Stack>

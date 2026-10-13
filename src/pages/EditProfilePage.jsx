@@ -316,7 +316,7 @@ const EditProfilePage = () => {
                   onDelete={() => handleRemoveSkill(skill)}
                   color="primary"
                   variant="outlined"
-                  sx={{ fontWeight: 600 }}
+                  sx={{ fontWeight: 600, '& .MuiChip-deleteIcon': { color: 'error.main', '&:hover': { color: 'error.dark' } } }}
                 />
               ))}
               {skills.length === 0 && (

@@ -22,20 +22,20 @@
 
 .welcome-moment__title {
   margin: 0;
-  color: #fff;
+  color: var(--app-fg);
   font-size: clamp(1rem, 6vw, 4.5rem);
   font-weight: 800;
   letter-spacing: -0.045em;
   line-height: 1.15;
   text-align: center;
   white-space: nowrap;
-  text-shadow: 0 3px 28px rgb(24 193 231 / 44%);
+  text-shadow: 0 3px 28px rgba(var(--app-fg-rgb), .18);
 }
 
 .welcome-moment__glyph {
   display: inline-block;
   min-width: 0.58em;
-  color: #fff;
+  color: var(--app-fg);
   animation: glyph-lottery-lock 360ms cubic-bezier(.2, .75, .25, 1) both;
   animation-delay: calc(var(--glyph-index) * 90ms);
 }

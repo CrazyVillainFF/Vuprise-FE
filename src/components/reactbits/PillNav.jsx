@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import './PillNav.css';
 
-export default function PillNav({ items = [], activeHref, className = '', ease = 'power2.out', baseColor = 'currentColor', pillColor = 'rgba(113,216,240,.16)', hoveredPillTextColor = '#71d8f0', pillTextColor = baseColor, initialLoadAnimation = true }) {
+export default function PillNav({ items = [], activeHref, className = '', ease = 'power2.out', baseColor = 'currentColor', pillColor = 'rgba(var(--app-fg-rgb),.12)', hoveredPillTextColor = 'var(--app-fg)', pillTextColor = baseColor, initialLoadAnimation = true }) {
   const root = useRef(null);
   const hoverRefs = useRef([]);
   const tweenRefs = useRef([]);

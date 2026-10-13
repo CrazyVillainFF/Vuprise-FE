@@ -156,6 +156,12 @@ const SignInPage = () => {
               Join the Network
             </Typography>
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            Need help?{' '}
+            <Typography component={Link} to="/support/request?type=general_help" variant="body2" color="primary" fontWeight={700} sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+              Contact Vuprise Support
+            </Typography>
+          </Typography>
         </Box>
       </CardContent>
     </Card>

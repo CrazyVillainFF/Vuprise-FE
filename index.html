@@ -2,6 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem('nexora_theme_mode');
+          const mode = saved === 'dark' || saved === 'light' ? saved : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          const root = document.documentElement;
+          root.dataset.theme = mode;
+          root.style.colorScheme = mode;
+          root.style.setProperty('--app-bg', mode === 'dark' ? '#000000' : '#FFFFFF');
+          root.style.setProperty('--app-fg', mode === 'dark' ? '#FFFFFF' : '#000000');
+          root.style.setProperty('--app-fg-rgb', mode === 'dark' ? '255, 255, 255' : '0, 0, 0');
+        } catch { /* React applies the selected theme on startup. */ }
+      })();
+    </script>
     <link rel="icon" type="image/png" href="/reactable-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vuprise | A network for what’s next</title>

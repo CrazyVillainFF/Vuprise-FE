@@ -10,9 +10,9 @@ const SiteBackdrop = () => {
   return (
     <AeroShards
       className="site-backdrop"
-      backgroundColor={dark ? '#101820' : '#F7FAFC'}
-      shardColor={dark ? '#35566A' : '#B8D2E0'}
-      accentColor={dark ? '#75BDE9' : '#4B8EAD'}
+      backgroundColor={dark ? '#000000' : '#FFFFFF'}
+      shardColor={dark ? '#FFFFFF' : '#000000'}
+      accentColor={dark ? '#FFFFFF' : '#000000'}
       placement="right"
       flow="stream"
       material="pearl"
@@ -22,7 +22,8 @@ const SiteBackdrop = () => {
       density={0.6}
       speed={0.22}
       spin={0.12}
-      glow={0.14}
+      glow={0.08}
+      chromaticAberration={0}
       spread={0.72}
       paused={false}
     />

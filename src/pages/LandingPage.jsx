@@ -25,10 +25,10 @@ const LandingPage = () => {
   const primaryDestination = isAuthenticated ? '/home' : '/signup';
 
   return (
-    <Box sx={{ minWidth: 0, width: '100%' }}>
+    <Box sx={{ minWidth: 0, width: '100%', bgcolor: 'background.default', position: 'relative' }}>
       <Container maxWidth="xl" sx={{ pt: { xs: 3, md: 7 }, pb: { xs: 7, md: 10 }, position: 'relative' }}>
         <Grid container spacing={{ xs: 2, md: 6 }} sx={{ alignItems: 'center', minHeight: { md: 'min(690px, calc(100dvh - 100px))' } }}>
-          <Grid size={{ xs: 12, md: 7 }}>
+          <Grid size={{ xs: 12, md: 12 }}>
             <Box sx={{ maxWidth: 720 }}>
               <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 2, color: 'primary.main' }}>
                 <ReactableMark size={32} />
@@ -37,8 +37,8 @@ const LandingPage = () => {
               <Box component="h1" sx={{ p: 0, m: 0, font: 'inherit', lineHeight: 1 }}>
                 <ParticleText
                   text="Vuprise"
-                  color={dark ? '#E8F2F8' : '#152B3A'}
-                  highlightColor={dark ? '#75BDE9' : '#176B9E'}
+                  color={dark ? '#FFFFFF' : '#000000'}
+                  highlightColor={dark ? '#FFFFFF' : '#000000'}
                   particleSize={2.2}
                   density={3.2}
                   scatter={80}
@@ -64,11 +64,11 @@ const LandingPage = () => {
                 <SpecularButton
                   size="md"
                   radius={12}
-                  tint={dark ? '#1B3544' : '#176B9E'}
+                  tint={dark ? '#FFFFFF' : '#000000'}
                   tintOpacity={1}
                   textColor="#FFFFFF"
-                  lineColor={dark ? '#C4E8FA' : '#D9F1FF'}
-                  baseColor={dark ? '#37647C' : '#0D527D'}
+                  lineColor={dark ? '#FFFFFF' : '#000000'}
+                  baseColor={dark ? '#FFFFFF' : '#000000'}
                   intensity={0.9}
                   shineSize={10}
                   shineFade={22}
@@ -88,13 +88,6 @@ const LandingPage = () => {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2.25 }}>
                 Thoughtful introductions start with the right context.
               </Typography>
-            </Box>
-          </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
-            <Box sx={{ minHeight: { xs: 240, sm: 320, md: 440 }, position: 'relative', display: 'grid', placeItems: 'center' }}>
-              <Box sx={{ width: { xs: 184, sm: 220, md: 260 }, height: { xs: 184, sm: 220, md: 260 }, borderRadius: '24%', position: 'relative', zIndex: 1 }}>
-                <ReactableMark size="100%" electric interactive symbolOnly />
-              </Box>
             </Box>
           </Grid>
         </Grid>

@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import { supportAPI } from '../services/api';
+import EvidencePhotoPicker from './EvidencePhotoPicker';
 
 export default function ReportDialog({ open, onClose, reportedUser, reportedPost, subject, onSubmitted }) {
   const { user } = useAuth();
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [evidenceFiles, setEvidenceFiles] = useState([]);
 
   const close = () => {
     if (busy) return;
     setReason('');
+    setEvidenceFiles([]);
     setError('');
     onClose?.();
   };
@@ -23,16 +26,16 @@ export default function ReportDialog({ open, onClose, reportedUser, reportedPost
     setBusy(true);
     setError('');
     try {
-      await supportAPI.submit({
-        type: 'report',
-        email: user.email,
-        userId: user._id,
-        subject,
-        category: reportedUser ? 'profile' : 'post',
-        message: clean,
+      const payload = new FormData();
+      Object.entries({
+        type: 'report', email: user.email, userId: user._id, subject,
+        category: reportedUser ? 'profile' : 'post', message: clean,
         ...(reportedUser ? { reportedUser } : { reportedPost }),
-      });
+      }).forEach(([key, value]) => payload.append(key, value));
+      evidenceFiles.forEach((file) => payload.append('evidence', file));
+      await supportAPI.submit(payload);
       setReason('');
+      setEvidenceFiles([]);
       onSubmitted?.();
       onClose?.();
     } catch (requestError) {
@@ -62,6 +65,7 @@ export default function ReportDialog({ open, onClose, reportedUser, reportedPost
             inputProps={{ maxLength: 1000, minLength: 10 }}
             helperText={`${reason.trim().length}/1000 · at least 10 characters`}
           />
+          <EvidencePhotoPicker files={evidenceFiles} onChange={setEvidenceFiles} disabled={busy}/>
         </DialogContent>
         <DialogActions>
           <Button onClick={close} disabled={busy}>Cancel</Button>

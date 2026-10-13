@@ -278,7 +278,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           <Stack direction="row" spacing={1}>
             <Button
               size="small"
-              startIcon={<ImageOutlinedIcon sx={{ color: '#0EA5E9' }} />}
+              startIcon={<ImageOutlinedIcon sx={{ color: 'text.primary' }} />}
               onClick={() => {
                 setOpenModal(true);
                 setTimeout(() => fileInputRef.current?.click(), 200);
@@ -289,7 +289,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
             </Button>
             <Button
               size="small"
-              startIcon={<TagOutlinedIcon sx={{ color: '#8B5CF6' }} />}
+              startIcon={<TagOutlinedIcon sx={{ color: 'text.primary' }} />}
               onClick={() => setOpenModal(true)}
               sx={{ color: 'text.secondary', fontWeight: 500 }}
             >
@@ -406,7 +406,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
                   right: 10,
                   bgcolor: 'rgba(0,0,0,0.65)',
                   color: '#fff',
-                  '&:hover': { bgcolor: 'rgba(239,68,68,0.9)' }
+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.9)' }
                 }}
               >
                 <CloseRoundedIcon fontSize="small" />
@@ -415,7 +415,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           )}
 
           {videoPreview && (
-            <Box sx={{ position: 'relative', mt: 1.75, borderRadius: 2.5, overflow: 'hidden', bgcolor: '#05070b', border: (theme) => `1px solid ${theme.palette.divider}` }}>
+            <Box sx={{ position: 'relative', mt: 1.75, borderRadius: 2.5, overflow: 'hidden', bgcolor: 'background.default', border: (theme) => `1px solid ${theme.palette.divider}` }}>
               <Box component="video" src={videoPreview} controls playsInline preload="metadata" onPlay={(event) => { if (event.currentTarget.currentTime < trimStart || event.currentTarget.currentTime >= trimEnd) event.currentTarget.currentTime = trimStart; }} onLoadedMetadata={(event) => {
                 const duration = event.currentTarget.duration;
                 if (!Number.isFinite(duration) || duration <= 0) { setError('This video’s duration could not be verified.'); return; }

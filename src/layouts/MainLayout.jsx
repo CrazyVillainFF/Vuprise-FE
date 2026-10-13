@@ -18,6 +18,7 @@ const MainLayout = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isMobileMessages = location.pathname === '/messages' && isMobile;
+  const isLandingPage = location.pathname === '/';
   const { incomingToast, dismissIncomingToast } = useNotifications();
 
   useEffect(() => {
@@ -49,7 +50,7 @@ const MainLayout = () => {
       isolation: 'isolate',
       zIndex: 1,
     }}>
-      <SiteBackdrop />
+      {!isLandingPage && <SiteBackdrop />}
       <Navbar />
       <Box
         component="main"
@@ -109,7 +110,7 @@ const MainLayout = () => {
               border: 1,
               borderColor: 'divider',
               borderRadius: 3,
-              bgcolor: (currentTheme) => currentTheme.palette.mode === 'light' ? 'rgba(255,255,255,.96)' : 'rgba(26,36,48,.96)',
+              bgcolor: (currentTheme) => currentTheme.palette.mode === 'light' ? 'rgba(255,255,255,.96)' : 'rgba(0,0,0,.96)',
               backdropFilter: 'blur(18px)',
               boxShadow: '0 12px 36px rgba(0,0,0,.3)',
               cursor: 'pointer',

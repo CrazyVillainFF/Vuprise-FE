@@ -157,8 +157,8 @@ const ImageUploadModal = ({
                 top: 10,
                 right: 10,
                 bgcolor: 'rgba(0,0,0,0.65)',
-                color: '#fff',
-                '&:hover': { bgcolor: 'rgba(239,68,68,0.85)' },
+                color: 'error.light',
+                '&:hover': { bgcolor: 'rgba(0,0,0,0.9)', color: 'error.main' },
               }}
             >
               <DeleteOutlineRoundedIcon />

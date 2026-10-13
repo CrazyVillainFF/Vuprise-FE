@@ -19,22 +19,20 @@ const ReactableMark = ({ size = 38, electric = false, interactive = false, symbo
         placeItems: 'center',
         overflow: 'hidden',
         borderRadius: '22%',
-        background: 'transparent',
+        background: '#000000',
       }}
     >
       <Box
         component="img"
-        src={symbolOnly ? '/reactable-network-white.png' : '/reactable-icon.png'}
+        src="/reactable-network-white.png"
         alt=""
         draggable={false}
-        sx={symbolOnly
-          ? { position: 'absolute', inset: 0, m: 'auto', zIndex: 2, width: '68%', height: '68%', objectFit: 'contain', filter: mode === 'light' ? 'brightness(0) saturate(100%)' : 'none' }
-          : { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        sx={{ position: 'absolute', inset: 0, m: 'auto', zIndex: 2, width: symbolOnly ? '68%' : '76%', height: symbolOnly ? '68%' : '76%', objectFit: 'contain' }}
       />
       {electric && !reduceMotion && <ElectricLogo
         src="/reactable-network-white.png"
-        color={mode === 'light' ? '#176B9E' : '#F0F5F8'}
-        glowColor={mode === 'light' ? '#0FAFCE' : '#AEEBFF'}
+        color={mode === 'light' ? '#000000' : '#FFFFFF'}
+        glowColor={mode === 'light' ? '#000000' : '#FFFFFF'}
         theme={mode}
         scale={0.64}
         intensity={interactive ? 0.8 : 0.35}

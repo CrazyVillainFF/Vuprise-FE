@@ -89,13 +89,13 @@ const SearchBar = ({ placeholder = 'Search professionals, skills, insights...', 
             px: 1.5,
             py: 0.5,
             borderRadius: 3,
-            bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(241, 245, 249, 0.9)' : 'rgba(30, 41, 59, 0.7)',
+            bgcolor: (theme) => theme.palette.action.hover,
             border: (theme) => `1px solid ${theme.palette.divider}`,
             transition: 'all 0.2s ease',
             '&:focus-within': {
               bgcolor: (theme) => theme.palette.background.paper,
               borderColor: 'primary.main',
-              boxShadow: (theme) => `0 0 0 3px ${theme.palette.mode === 'light' ? 'rgba(79, 70, 229, 0.12)' : 'rgba(99, 102, 241, 0.25)'}`,
+              boxShadow: (theme) => `0 0 0 3px ${theme.palette.action.focus}`,
             },
           }}
         >
@@ -203,7 +203,7 @@ const SearchBar = ({ placeholder = 'Search professionals, skills, insights...', 
                         sx={{ py: 1 }}
                       >
                         <ListItemAvatar>
-                          <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.light', color: '#fff' }}>
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: 'action.selected', color: 'text.primary' }}>
                             <ArticleOutlinedIcon sx={{ fontSize: 18 }} />
                           </Avatar>
                         </ListItemAvatar>

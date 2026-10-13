@@ -83,7 +83,9 @@ export const adminAPI = {
 };
 
 export const supportAPI = {
-  submit: (data) => api.post('/support/requests', data),
+  submit: (data) => api.post('/support/requests', data, {
+    headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+  }),
 };
 
 // ================= USER APIs =================

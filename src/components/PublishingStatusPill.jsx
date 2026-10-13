@@ -44,7 +44,7 @@ const PublishingStatusPill = () => {
         overflow: 'hidden',
         borderRadius: 999,
         border: (theme) => `1px solid ${theme.palette.divider}`,
-        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(18, 27, 38, .96)' : 'rgba(255,255,255,.97)',
+        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, .96)' : 'rgba(255,255,255,.97)',
         backdropFilter: 'blur(16px)',
         boxShadow: '0 12px 36px rgba(0,0,0,.22)',
         animation: 'publish-pill-in 180ms ease-out',
@@ -83,7 +83,7 @@ const PublishingStatusPill = () => {
       )}
       <Collapse in={status.expanded}>
         <Box sx={{ px: 2, pb: 1.5, pt: .5 }}>
-          {status.stage !== 'failed' && <Stepper step={status.stage === 'preparing' ? 1 : status.stage === 'uploading' ? 2 : status.stage === 'published' ? 4 : 3} accentColor="#71d8f0" theme="dark" style={{ marginBottom: 8 }}><Step title="Preparing"/><Step title="Uploading"/><Step title="Publishing"/><Step title="Published"/></Stepper>}
+          {status.stage !== 'failed' && <Stepper step={status.stage === 'preparing' ? 1 : status.stage === 'uploading' ? 2 : status.stage === 'published' ? 4 : 3} accentColor={theme.palette.text.primary} theme={theme.palette.mode} style={{ marginBottom: 8 }}><Step title="Preparing"/><Step title="Uploading"/><Step title="Publishing"/><Step title="Published"/></Stepper>}
           <Stack direction="row" spacing={1.25} alignItems="center">
             {status.previewUrl && <Box component={status.isVideo ? 'video' : 'img'} src={status.previewUrl} muted playsInline aria-label="Selected media preview" sx={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 1.5, bgcolor: 'action.hover' }} />}
             <Box sx={{ minWidth: 0 }}>

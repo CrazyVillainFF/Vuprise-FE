@@ -24,7 +24,7 @@ const ProfileMiniCard = () => {
           height: 72,
           backgroundImage: user.coverImage
             ? `url(${user.coverImage})`
-            : 'linear-gradient(135deg, #123B5D 0%, #176B9E 100%)',
+            : 'linear-gradient(135deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.18) 100%)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           position: 'relative'

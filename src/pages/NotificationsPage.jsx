@@ -72,13 +72,13 @@ const NotificationsPage = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'post_like':
-        return <FavoriteRoundedIcon sx={{ fontSize: 16, color: '#EF4444' }} />;
+        return <FavoriteRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
       case 'post_comment':
-        return <ChatBubbleRoundedIcon sx={{ fontSize: 16, color: '#0EA5E9' }} />;
+        return <ChatBubbleRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
       case 'connection_request':
-        return <PersonAddRoundedIcon sx={{ fontSize: 16, color: '#6366F1' }} />;
+        return <PersonAddRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
       case 'connection_accepted':
-        return <CheckCircleRoundedIcon sx={{ fontSize: 16, color: '#10B981' }} />;
+        return <CheckCircleRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
       case 'group_invitation':
         return <GroupsRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />;
       default:
@@ -308,7 +308,7 @@ const NotificationsPage = () => {
                           e.stopPropagation();
                           deleteNotification(item._id);
                         }}
-                        sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                        sx={{ color: 'error.main', '&:hover': { color: 'error.dark' } }}
                       >
                         <DeleteOutlineRoundedIcon fontSize="small" />
                       </IconButton>

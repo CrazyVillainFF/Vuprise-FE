@@ -10,15 +10,15 @@ const ErrorState = ({
   sx = {}
 }) => {
   return (
-    <Card sx={{ textAlign: 'center', py: 5, px: 3, border: '1px dashed rgba(239, 68, 68, 0.4)', ...sx }}>
+    <Card sx={{ textAlign: 'center', py: 5, px: 3, border: (theme) => `1px dashed ${theme.palette.divider}`, ...sx }}>
       <CardContent>
         <Box
           sx={{
             display: 'inline-flex',
             p: 2,
             borderRadius: '50%',
-            bgcolor: 'rgba(239, 68, 68, 0.1)',
-            color: '#EF4444',
+            bgcolor: 'action.hover',
+            color: 'text.primary',
             mb: 2,
           }}
         >

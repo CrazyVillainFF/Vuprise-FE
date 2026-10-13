@@ -15,11 +15,14 @@ const request = (path, body, token, keepalive = false) => fetch(`${baseUrl}${pat
 export function connectRealtime(token) {
   disconnectRealtime();
   if (!token) return;
-  const state = { token, closed: false, controller: null, sessionId: null, heartbeat: null, retry: 0 };
+  const state = { token, closed: false, running: false, controller: null, sessionId: null, heartbeat: null, retry: 0, beatNow: null };
   connection = state;
 
   const run = async () => {
-    while (!state.closed) {
+    if (state.running || state.closed || document.visibilityState === 'hidden') return;
+    state.running = true;
+    try {
+    while (!state.closed && document.visibilityState !== 'hidden') {
       state.controller = new AbortController();
       try {
         const response = await fetch(`${baseUrl}/realtime/events`, {
@@ -57,13 +60,16 @@ export function connectRealtime(token) {
             publish({ type: eventName || 'message', ...payload });
             if (eventName === 'ready') {
               state.sessionId = payload.sessionId;
-              state.heartbeat = window.setInterval(async () => {
+              state.beatNow = async () => {
+                if (state.closed || document.visibilityState === 'hidden' || navigator.onLine === false || !state.sessionId) return;
                 try {
                   const beat = await request('/realtime/heartbeat', { sessionId: state.sessionId }, state.token);
-                  if (beat.status === 401) {
-                    state.controller?.abort();
-                  }
-                } catch { /* The stream will reconnect; the server expires the session if heartbeats stop. */ }
+                  if (beat.status === 401) state.controller?.abort();
+                } catch { /* The stream reconnects; the server expires sessions whose heartbeats stop. */ }
+              };
+              void state.beatNow();
+              state.heartbeat = window.setInterval(async () => {
+                await state.beatNow?.();
               }, payload.heartbeatMs || 25_000);
               if (watchedUserIds.size) request('/realtime/watch', { sessionId: state.sessionId, userIds: [...watchedUserIds].slice(0, 100) }, state.token).catch(() => {});
             }
@@ -82,7 +88,27 @@ export function connectRealtime(token) {
         await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
     }
+    } finally {
+      state.running = false;
+      if (!state.closed && document.visibilityState !== 'hidden') window.setTimeout(run, 0);
+    }
   };
+
+  state.onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      if (state.heartbeat) window.clearInterval(state.heartbeat);
+      state.heartbeat = null;
+      const sessionId = state.sessionId;
+      state.sessionId = null;
+      if (sessionId) request('/realtime/logout', { sessionId }, state.token, true).catch(() => {});
+      state.controller?.abort();
+    } else {
+      void run();
+    }
+  };
+  state.onOnline = () => { if (document.visibilityState !== 'hidden') void state.beatNow?.(); };
+  document.addEventListener('visibilitychange', state.onVisibilityChange);
+  window.addEventListener('online', state.onOnline);
   void run();
 }
 
@@ -91,6 +117,8 @@ export function disconnectRealtime({ notify = false } = {}) {
   connection = null;
   if (!state) return;
   state.closed = true;
+  document.removeEventListener('visibilitychange', state.onVisibilityChange);
+  window.removeEventListener('online', state.onOnline);
   if (notify && state.sessionId) request('/realtime/logout', { sessionId: state.sessionId }, state.token, true).catch(() => {});
   if (state.heartbeat) window.clearInterval(state.heartbeat);
   state.controller?.abort();

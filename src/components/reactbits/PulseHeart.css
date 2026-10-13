@@ -1,10 +1,10 @@
 .pulse-heart {
   --ph-size: 40px;
   --ph-corner: 32px;
-  --ph-pill: #232326;
-  --ph-idle: #8b8b93;
-  --ph-liked: #ff4d6d;
-  --ph-text: #f5f5f5;
+  --ph-pill: rgba(var(--app-fg-rgb),.08);
+  --ph-idle: var(--app-fg);
+  --ph-liked: var(--app-fg);
+  --ph-text: var(--app-fg);
   --ph-roll: 350ms;
   --ph-stroke: 2.5px;
   --ph-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -50,8 +50,8 @@
 @media (prefers-reduced-motion: reduce) { .pulse-heart { transition: none; } .pulse-heart__heart { transition: color 200ms ease; } .pulse-heart__roll { transition: none; } }
 
 /* Fit the React Bits heart neatly into Vuprise's existing Like action row. */
-.post-like-heart { flex: 1; color: #81909E; }
-.post-like-heart[data-liked='true'] { color: #EF4444; }
+.post-like-heart { flex: 1; color: var(--app-fg); }
+.post-like-heart[data-liked='true'] { color: var(--app-fg); }
 .post-like-heart .pulse-heart__pill { gap: 0; padding: 0; background: transparent; }
 .post-like-heart .pulse-heart__heart { width: 20px; height: 20px; }
 .post-like-heart .pulse-heart__pill::after { content: 'Like'; margin-inline-start: 8px; color: inherit; font-family: inherit; font-size: 0.875rem; font-weight: 600; line-height: 1.5; }

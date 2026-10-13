@@ -28,15 +28,9 @@ import TypingIndicator from '../components/TypingIndicator';
 import { sendTyping, subscribeRealtime, watchPresence } from '../services/realtime';
 import GroupChatPanel from './GroupChatPage';
 import MessageInteractions from '../components/MessageInteractions';
+import { formatLastSeen } from '../utils/presenceTime';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
-const formatLastSeen = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
-  return date.toDateString() === new Date().toDateString() ? `Last seen today at ${time}` : `Last seen ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)} at ${time}`;
-};
 const formatConversationTime = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -91,6 +85,7 @@ const MessagesPage = () => {
   const [messageToDelete, setMessageToDelete] = useState(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [presenceByUser, setPresenceByUser] = useState({});
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
   const [typingByScope, setTypingByScope] = useState({});
   const bottomRef = useRef(null);
   const searchRef = useRef(null);
@@ -107,6 +102,11 @@ const MessagesPage = () => {
   const imageInputRef = useRef(null);
   const groupIconInputRef = useRef(null);
   const typingRef = useRef({ scopeId: '', timer: null });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setPresenceNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const stopTyping = useCallback(() => {
     const typing = typingRef.current;
@@ -863,7 +863,7 @@ const MessagesPage = () => {
                           secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                         />
                         <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
-                          {presenceByUser[contact._id]?.state === 'online' && <Typography variant="caption" color="success.main" noWrap>Online</Typography>}
+                          {presenceByUser[contact._id]?.state === 'online' ? <Typography variant="caption" color="text.primary" noWrap>Online</Typography> : presenceByUser[contact._id]?.state === 'offline' ? <Typography variant="caption" color="text.secondary" noWrap>{formatLastSeen(presenceByUser[contact._id]?.lastSeenAt, presenceNow)}</Typography> : null}
                           {hasMessages && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(conversation.lastMessageAt || conversation.lastMessage.createdAt)}</Typography>}
                           {unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}
                         </Stack>
@@ -907,7 +907,7 @@ const MessagesPage = () => {
                     <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="subtitle1" fontWeight={700} noWrap>{active.displayName || active.peer.name}</Typography>
-                      <Typography variant="caption" color={presenceByUser[active.peer._id]?.state === 'online' ? 'success.main' : 'text.secondary'} noWrap>{presenceByUser[active.peer._id]?.state === 'online' ? 'Online' : presenceByUser[active.peer._id]?.state === 'offline' ? formatLastSeen(presenceByUser[active.peer._id]?.lastSeenAt) || 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>{presenceByUser[active.peer._id]?.state === 'online' ? 'Online' : presenceByUser[active.peer._id]?.state === 'offline' ? formatLastSeen(presenceByUser[active.peer._id]?.lastSeenAt, presenceNow) || 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
                     </Box>
                   </ButtonBase>
                 </Stack>

@@ -48,7 +48,7 @@ function GlobalGhostCursor() {
     <React.Suspense fallback={null}>
       <GhostCursor
         fixed
-        color={mode === 'dark' ? '#71D8F0' : '#087C98'}
+        color={mode === 'dark' ? '#FFFFFF' : '#000000'}
         brightness={0.68}
         edgeIntensity={0}
         trailLength={32}

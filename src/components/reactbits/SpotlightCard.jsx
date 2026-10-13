@@ -25,7 +25,7 @@ export default function SpotlightCard({ children, className = '', style, spotlig
     window.addEventListener('pointermove', onMove, { passive: true }); node.addEventListener('pointerleave', onLeave); document.addEventListener('visibilitychange', onVisibility);
     return () => { window.removeEventListener('pointermove', onMove); node.removeEventListener('pointerleave', onLeave); document.removeEventListener('visibilitychange', onVisibility); if (frame) cancelAnimationFrame(frame); };
   }, [ambient, intensity, proximity, smoothing]);
-  return <div ref={ref} className={`spotlight-card${className ? ` ${className}` : ''}`} data-theme={theme} data-shape={shape} data-flare={flare} style={{ '--spotlight-color': spotlightColor || (theme === 'dark' ? '255,255,255' : '15,23,42'), '--spotlight-size': `${spotlightSize}px`, '--spotlight-softness': softness, '--spotlight-border-glow': borderGlow, '--spotlight-grain': grain, ...style }} {...rest}>
+  return <div ref={ref} className={`spotlight-card${className ? ` ${className}` : ''}`} data-theme={theme} data-shape={shape} data-flare={flare} style={{ '--spotlight-color': spotlightColor || (theme === 'dark' ? '255,255,255' : '0,0,0'), '--spotlight-size': `${spotlightSize}px`, '--spotlight-softness': softness, '--spotlight-border-glow': borderGlow, '--spotlight-grain': grain, ...style }} {...rest}>
     <span className="spotlight-card__light" aria-hidden="true" />{children}<span className="spotlight-card__border" aria-hidden="true" />
   </div>;
 }

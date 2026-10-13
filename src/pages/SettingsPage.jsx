@@ -17,7 +17,7 @@ import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../theme/ThemeContext';
@@ -46,6 +46,7 @@ const SettingsPage = () => {
   const [toastMessage, setToastMessage] = useState(null);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [savingHideActivity, setSavingHideActivity] = useState(false);
+  const [savingInactivityReminders, setSavingInactivityReminders] = useState(false);
   const [privacyError, setPrivacyError] = useState(null);
   const [keyBackup, setKeyBackup] = useState({ loading: true, pair: null, remoteKey: null, backups: [], error: '' });
   const [backupPassphrase, setBackupPassphrase] = useState('');
@@ -141,6 +142,20 @@ const SettingsPage = () => {
       setPrivacyError(err.message || 'Could not update Hide Activity.');
     } finally {
       setSavingHideActivity(false);
+    }
+  };
+
+  const handleInactivityRemindersChange = async (inactivityRemindersEnabled) => {
+    try {
+      setSavingInactivityReminders(true);
+      setPrivacyError(null);
+      const response = await userAPI.updateSettings({ inactivityRemindersEnabled });
+      updateUser(response.data.user);
+      setToastMessage(inactivityRemindersEnabled ? 'Inactivity reminder emails are on.' : 'Inactivity reminder emails are off.');
+    } catch (err) {
+      setPrivacyError(err.message || 'Could not update your email reminder preference.');
+    } finally {
+      setSavingInactivityReminders(false);
     }
   };
 
@@ -339,6 +354,17 @@ const SettingsPage = () => {
         <Card sx={{ p: 3 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
             <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" fontWeight={700}>Inactivity reminder emails</Typography>
+              <Typography variant="body2" color="text.secondary">Get one email after 28 hours away. Returning to Vuprise starts a new activity period.</Typography>
+            </Box>
+            <Stack direction="row" alignItems="center" gap={1.5} sx={{ flexShrink: 0 }}><Typography variant="body2" color="text.secondary">{user?.inactivityRemindersEnabled === false ? 'Off' : 'On'}</Typography><SquishSwitch checked={user?.inactivityRemindersEnabled !== false} onChange={handleInactivityRemindersChange} disabled={savingInactivityReminders} aria-label="Inactivity reminder emails" /></Stack>
+          </Stack>
+          {privacyError && <Alert severity="error" sx={{ mt: 2 }}>{privacyError}</Alert>}
+        </Card>
+
+        <Card sx={{ p: 3 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
+            <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" fontWeight={700}>Hide Activity</Typography>
               <Typography variant="body2" color="text.secondary">Hide your online and offline status from other users.</Typography>
             </Box>
@@ -430,7 +456,7 @@ const SettingsPage = () => {
         </Card>
 
         {/* SECTION 4: Sign Out / Danger Zone */}
-        <Card sx={{ p: 3, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+        <Card sx={{ p: 3, border: (theme) => `1px solid ${theme.palette.divider}` }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
               <Typography variant="subtitle1" fontWeight={700} color="error.main">
@@ -448,6 +474,16 @@ const SettingsPage = () => {
             >
               Sign Out
             </Button>
+          </Stack>
+        </Card>
+
+        <Card sx={{ p: 3, border: (theme) => `1px solid ${theme.palette.divider}` }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>Need help?</Typography>
+              <Typography variant="body2" color="text.secondary">Send a question or report an issue to Vuprise Support.</Typography>
+            </Box>
+            <Button component={Link} to="/support/request?type=general_help" variant="outlined">Contact support</Button>
           </Stack>
         </Card>
       </Stack>

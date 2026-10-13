@@ -14,7 +14,7 @@ const NotFoundPage = () => {
         fontWeight={900}
         sx={{
           fontSize: { xs: '6rem', sm: '8rem' },
-          background: 'linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)',
+          background: (theme) => `linear-gradient(135deg, ${theme.palette.text.primary} 0%, ${theme.palette.text.secondary} 100%)`,
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           lineHeight: 1,

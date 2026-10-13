@@ -405,7 +405,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
           )}
 
           {post.mediaType === 'video' && post.videoUrl && (
-            <Box sx={{ mt: 2, borderRadius: 2.5, overflow: 'hidden', bgcolor: '#05070b', border: (theme) => `1px solid ${theme.palette.divider}` }}>
+            <Box sx={{ mt: 2, borderRadius: 2.5, overflow: 'hidden', bgcolor: 'background.default', border: (theme) => `1px solid ${theme.palette.divider}` }}>
               <Box component="video" src={post.videoUrl} poster={post.videoThumbnail || undefined} controls playsInline preload="metadata" sx={{ display: 'block', width: '100%', maxHeight: 520 }} />
             </Box>
           )}
@@ -441,10 +441,10 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             showCount={false}
             size={20}
             corner={12}
-            likedColor="#EF4444"
-            idleColor="#81909E"
+            likedColor="currentColor"
+            idleColor="currentColor"
             pillColor="transparent"
-            textColor="#81909E"
+            textColor="currentColor"
             label={isAuthenticated ? 'Like' : 'Sign in to like'}
             className="post-like-heart"
           />
@@ -580,7 +580,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
                                 aria-label="Delete comment"
                                 title="Delete comment"
                                 onClick={() => handleDeleteComment(comment._id)}
-                                sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                                sx={{ p: 0.25, color: 'error.main', '&:hover': { color: 'error.dark' } }}
                               >
                                 <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
                               </IconButton>

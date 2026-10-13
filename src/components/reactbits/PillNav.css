@@ -82,8 +82,8 @@
   height: 17px;
   padding: 0 4px;
   border-radius: 99px;
-  background: #ef6f7b;
-  color: #fff;
+  background: var(--app-fg);
+  color: var(--app-bg);
   font-size: 10px;
   line-height: 17px;
   text-align: center;

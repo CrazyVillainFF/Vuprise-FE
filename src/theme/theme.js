@@ -1,27 +1,33 @@
 import { alpha, createTheme } from '@mui/material/styles';
 
-const navy = '#123B5D';
-const blue = '#176B9E';
-const ink = '#17212B';
-
+/** Vuprise monochrome palette: semantic states use contrast and labels, never hue. */
 export const getDesignTokens = (mode) => {
   const light = mode === 'light';
-  const surface = light ? '#FFFFFF' : '#17212B';
-  const canvas = light ? '#F6F8FA' : '#101820';
-  const border = light ? '#DCE4EA' : '#2A3B49';
+  const foreground = light ? '#000000' : '#FFFFFF';
+  const background = light ? '#FFFFFF' : '#000000';
+  const border = alpha(foreground, light ? 0.16 : 0.2);
+  const shadow = light ? 'rgba(0,0,0,.12)' : 'rgba(255,255,255,.08)';
 
   return {
     palette: {
       mode,
-      primary: { main: light ? navy : '#75BDE9', light: light ? '#E8F2F8' : '#B8E0F6', dark: light ? '#0B2A43' : '#3A8DBC', contrastText: '#FFFFFF' },
-      secondary: { main: blue, light: '#E8F2F8', dark: '#0E4E76', contrastText: '#FFFFFF' },
-      success: { main: light ? '#287A5A' : '#63C29A' },
-      error: { main: light ? '#B43C45' : '#F08A91' },
-      warning: { main: light ? '#A76612' : '#EDB866' },
-      background: { default: canvas, paper: surface, subtle: light ? '#EDF2F5' : '#1E2C38', elevated: light ? '#FFFFFF' : '#1B2935' },
-      text: { primary: light ? ink : '#F0F5F8', secondary: light ? '#526372' : '#AABAC7', disabled: light ? '#82909B' : '#6F8190' },
+      primary: { main: foreground, light: alpha(foreground, 0.72), dark: foreground, contrastText: background },
+      secondary: { main: foreground, light: alpha(foreground, 0.72), dark: foreground, contrastText: background },
+      success: { main: foreground },
+      error: { main: light ? '#B3261E' : '#FF6B6B', light: light ? '#D44A42' : '#FF9999', dark: light ? '#8C1D18' : '#D93D46', contrastText: '#FFFFFF' },
+      warning: { main: light ? '#C85A00' : '#FF9D42', light: light ? '#E87516' : '#FFB66E', dark: light ? '#914000' : '#D9791D', contrastText: '#000000' },
+      info: { main: foreground },
+      background: { default: background, paper: background, subtle: alpha(foreground, 0.035), elevated: background },
+      text: { primary: foreground, secondary: alpha(foreground, 0.68), disabled: alpha(foreground, 0.38) },
       divider: border,
-      action: { hover: alpha(light ? navy : '#75BDE9', light ? 0.055 : 0.11), selected: alpha(light ? navy : '#75BDE9', light ? 0.1 : 0.17), focus: alpha(light ? navy : '#75BDE9', 0.16) },
+      action: {
+        active: alpha(foreground, 0.72),
+        hover: alpha(foreground, 0.055),
+        selected: alpha(foreground, 0.1),
+        focus: alpha(foreground, 0.18),
+        disabled: alpha(foreground, 0.3),
+        disabledBackground: alpha(foreground, 0.12),
+      },
     },
     typography: {
       fontFamily: '"Aptos", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
@@ -29,19 +35,29 @@ export const getDesignTokens = (mode) => {
       subtitle1: { fontWeight: 650 }, subtitle2: { fontWeight: 650 }, body1: { fontSize: '0.975rem', lineHeight: 1.62 }, body2: { fontSize: '0.875rem', lineHeight: 1.56 }, button: { textTransform: 'none', fontWeight: 700, letterSpacing: '0' }, caption: { lineHeight: 1.45 },
     },
     shape: { borderRadius: 10 },
-    shadows: light ? ['none', '0 1px 2px rgba(26, 54, 75, 0.05)', '0 3px 10px rgba(26, 54, 75, 0.07)', '0 12px 30px rgba(26, 54, 75, 0.09)', ...Array(21).fill('0 16px 38px rgba(26, 54, 75, 0.10)')] : ['none', '0 1px 2px rgba(0, 0, 0, 0.22)', '0 3px 10px rgba(0, 0, 0, 0.25)', '0 12px 30px rgba(0, 0, 0, 0.3)', ...Array(21).fill('0 16px 38px rgba(0, 0, 0, 0.34)')],
+    shadows: ['none', `0 1px 2px ${shadow}`, `0 3px 10px ${shadow}`, `0 12px 30px ${shadow}`, ...Array(21).fill(`0 16px 38px ${shadow}`)],
     components: {
-      MuiCssBaseline: { styleOverrides: { '*': { boxSizing: 'border-box' }, html: { scrollBehavior: 'smooth' }, body: { margin: 0, backgroundColor: canvas, scrollbarColor: `${light ? '#AABAC7' : '#405261'} transparent`, '&::-webkit-scrollbar, & *::-webkit-scrollbar': { width: 8, height: 8 }, '&::-webkit-scrollbar-thumb, & *::-webkit-scrollbar-thumb': { borderRadius: 8, backgroundColor: light ? '#AABAC7' : '#405261' } }, '::selection': { backgroundColor: alpha(light ? navy : '#75BDE9', 0.22) }, '@media (prefers-reduced-motion: reduce)': { '*, *::before, *::after': { scrollBehavior: 'auto !important', transitionDuration: '0.01ms !important', animationDuration: '0.01ms !important' } } } },
-      MuiButton: { defaultProps: { disableElevation: true }, styleOverrides: { root: { minHeight: 40, borderRadius: 8, padding: '8px 16px', transition: 'background-color .18s ease, border-color .18s ease, transform .18s ease', '&:active': { transform: 'translateY(1px)' } }, sizeLarge: { minHeight: 48, padding: '11px 20px' }, containedPrimary: { boxShadow: '0 5px 12px rgba(18, 59, 93, 0.18)', '&:hover': { backgroundColor: '#0B2A43', boxShadow: '0 7px 16px rgba(18, 59, 93, 0.24)' } }, outlined: { borderColor: border, '&:hover': { borderColor: navy, backgroundColor: alpha(navy, 0.045) } } } },
-      MuiCard: { styleOverrides: { root: { borderRadius: 12, border: `1px solid ${border}`, backgroundImage: 'none', boxShadow: light ? '0 1px 2px rgba(26, 54, 75, 0.03)' : 'none', transition: 'border-color .2s ease, box-shadow .2s ease, transform .2s ease' } } },
-      MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
-      MuiTextField: { styleOverrides: { root: { '& .MuiInputLabel-root': { fontWeight: 600 }, '& .MuiOutlinedInput-root': { borderRadius: 8, backgroundColor: light ? '#FFFFFF' : '#1B2935', transition: 'box-shadow .18s ease, border-color .18s ease', '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: light ? '#8FA3B1' : '#567083' }, '&.Mui-focused': { boxShadow: `0 0 0 3px ${alpha(light ? navy : '#75BDE9', 0.16)}` } } } } },
-      MuiTabs: { styleOverrides: { indicator: { height: 3, borderRadius: 3 }, root: { minHeight: 52 }, flexContainer: { gap: 8 } } },
-      MuiTab: { styleOverrides: { root: { minHeight: 52, borderRadius: 7, minWidth: 'auto', paddingInline: 14, '&.Mui-selected': { fontWeight: 750 } } } },
-      MuiChip: { styleOverrides: { root: { borderRadius: 6, fontWeight: 650, border: `1px solid ${border}` }, filledPrimary: { borderColor: 'transparent' } } },
-      MuiDialog: { styleOverrides: { paper: { borderRadius: 14, border: `1px solid ${border}` } } },
-      MuiMenu: { styleOverrides: { paper: { borderRadius: 10, border: `1px solid ${border}`, boxShadow: light ? '0 14px 34px rgba(26, 54, 75, 0.14)' : undefined } } },
-      MuiAlert: { styleOverrides: { root: { borderRadius: 8, alignItems: 'center' } } },
+      MuiCssBaseline: { styleOverrides: {
+        '*': { boxSizing: 'border-box' }, html: { scrollBehavior: 'smooth', colorScheme: mode },
+        body: { margin: 0, color: foreground, backgroundColor: background, scrollbarColor: `${alpha(foreground, 0.24)} transparent`, '&::-webkit-scrollbar, & *::-webkit-scrollbar': { width: 8, height: 8 }, '&::-webkit-scrollbar-thumb, & *::-webkit-scrollbar-thumb': { borderRadius: 8, backgroundColor: alpha(foreground, 0.24) } },
+        '::selection': { color: background, backgroundColor: foreground },
+        '@media (prefers-reduced-motion: reduce)': { '*, *::before, *::after': { scrollBehavior: 'auto !important', transitionDuration: '0.01ms !important', animationDuration: '0.01ms !important' } },
+      } },
+      MuiButton: { defaultProps: { disableElevation: true }, styleOverrides: {
+        root: { minHeight: 40, borderRadius: 8, padding: '8px 16px', transition: 'background-color .18s ease, border-color .18s ease, transform .18s ease', '&:active': { transform: 'translateY(1px)' }, '&:focus-visible': { outline: `2px solid ${foreground}`, outlineOffset: 2 } },
+        sizeLarge: { minHeight: 48, padding: '11px 20px' },
+        containedPrimary: { color: background, backgroundColor: foreground, '&:hover': { color: background, backgroundColor: alpha(foreground, 0.82) } },
+        outlined: { borderColor: border, '&:hover': { borderColor: foreground, backgroundColor: alpha(foreground, 0.05) } },
+      } },
+      MuiCard: { styleOverrides: { root: { borderRadius: 12, border: `1px solid ${border}`, backgroundColor: background, backgroundImage: 'none', boxShadow: `0 1px 2px ${shadow}`, transition: 'border-color .2s ease, box-shadow .2s ease, transform .2s ease' } } },
+      MuiPaper: { styleOverrides: { root: { color: foreground, backgroundColor: background, backgroundImage: 'none' } } },
+      MuiTextField: { styleOverrides: { root: { '& .MuiInputLabel-root': { fontWeight: 600 }, '& .MuiOutlinedInput-root': { color: foreground, borderRadius: 8, backgroundColor: background, transition: 'box-shadow .18s ease, border-color .18s ease', '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: alpha(foreground, 0.5) }, '&.Mui-focused': { boxShadow: `0 0 0 3px ${alpha(foreground, 0.16)}` }, '& .MuiOutlinedInput-notchedOutline': { borderColor: border } } } } },
+      MuiTabs: { styleOverrides: { indicator: { height: 3, borderRadius: 3, backgroundColor: foreground }, root: { minHeight: 52 }, flexContainer: { gap: 8 } } },
+      MuiTab: { styleOverrides: { root: { color: alpha(foreground, 0.65), minHeight: 52, borderRadius: 7, minWidth: 'auto', paddingInline: 14, '&.Mui-selected': { color: foreground, fontWeight: 750 } } } },
+      MuiChip: { styleOverrides: { root: { color: foreground, borderRadius: 6, fontWeight: 650, border: `1px solid ${border}`, backgroundColor: alpha(foreground, 0.06) }, filledPrimary: { color: background, borderColor: 'transparent', backgroundColor: foreground } } },
+      MuiDialog: { styleOverrides: { paper: { color: foreground, backgroundColor: background, backgroundImage: 'none', borderRadius: 14, border: `1px solid ${border}` } } },
+      MuiMenu: { styleOverrides: { paper: { color: foreground, backgroundColor: background, borderRadius: 10, border: `1px solid ${border}`, boxShadow: `0 14px 34px ${shadow}` } } },
+      MuiAlert: { styleOverrides: { root: { color: foreground, backgroundColor: alpha(foreground, 0.07), border: `1px solid ${border}`, borderRadius: 8, alignItems: 'center' }, icon: { color: foreground } } },
     },
   };
 };

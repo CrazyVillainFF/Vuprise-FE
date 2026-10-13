@@ -132,7 +132,7 @@ const RightWidgets = () => {
       <Card>
         <CardHeader
           avatar={
-            <Avatar sx={{ bgcolor: 'rgba(79, 70, 229, 0.1)', color: 'primary.main', width: 32, height: 32 }}>
+            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.primary', width: 32, height: 32 }}>
               <TrendingUpRoundedIcon sx={{ fontSize: 18 }} />
             </Avatar>
           }
@@ -175,33 +175,33 @@ const RightWidgets = () => {
         sx={{
           background: (theme) =>
             theme.palette.mode === 'light'
-              ? '#123B5D'
-              : '#1E577D',
-          color: '#FFFFFF',
+              ? '#000000'
+              : '#FFFFFF',
+          color: (theme) => theme.palette.mode === 'light' ? '#FFFFFF' : '#000000',
           p: 2.5
         }}
       >
         <Stack spacing={1.5} alignItems="flex-start">
           <Chip
-            icon={<AutoAwesomeRoundedIcon sx={{ fontSize: '14px !important', color: '#FCD34D !important' }} />}
+            icon={<AutoAwesomeRoundedIcon sx={{ fontSize: '14px !important', color: 'inherit !important' }} />}
             label="VUPRISE EXECUTIVE"
             size="small"
-            sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 700, fontSize: '0.7rem' }}
+            sx={{ bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)', color: 'inherit', fontWeight: 700, fontSize: '0.7rem' }}
           />
-          <Typography variant="h6" fontWeight={800} sx={{ color: '#fff', lineHeight: 1.2 }}>
+          <Typography variant="h6" fontWeight={800} sx={{ color: 'inherit', lineHeight: 1.2 }}>
             Accelerate your executive presence
           </Typography>
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>
+          <Typography variant="caption" sx={{ color: (theme) => theme.palette.mode === 'light' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.72)', lineHeight: 1.5 }}>
             Access curated founder networks, verified leadership roundtables, and priority placement.
           </Typography>
           <Button
             variant="contained"
             size="small"
             sx={{
-              bgcolor: '#FFFFFF',
-              color: '#123B5D',
+              bgcolor: (theme) => theme.palette.mode === 'light' ? '#FFFFFF' : '#000000',
+              color: (theme) => theme.palette.mode === 'light' ? '#000000' : '#FFFFFF',
               fontWeight: 700,
-              '&:hover': { bgcolor: '#F8FAFC' }
+              '&:hover': { bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(255,255,255,.82)' : 'rgba(0,0,0,.82)' }
             }}
             onClick={() => navigate('/settings')}
           >

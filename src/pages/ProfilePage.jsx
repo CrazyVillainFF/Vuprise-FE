@@ -49,16 +49,7 @@ import ErrorState from '../components/ErrorState';
 import { subscribeRealtime, watchPresence } from '../services/realtime';
 import SpotlightCard from '../components/reactbits/SpotlightCard';
 import ReportDialog from '../components/ReportDialog';
-
-const formatLastSeen = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
-  return date.toDateString() === new Date().toDateString()
-    ? `Last seen today at ${time}`
-    : `Last seen ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)} at ${time}`;
-};
+import { formatLastSeen } from '../utils/presenceTime';
 
 const ProfilePage = () => {
   const { id } = useParams();
@@ -73,6 +64,12 @@ const ProfilePage = () => {
   const [postsError, setPostsError] = useState(null);
   const [error, setError] = useState(null);
   const [presence, setPresence] = useState({ state: 'unknown', lastSeenAt: null });
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setPresenceNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Upload modals
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -252,7 +249,7 @@ const ProfilePage = () => {
   return (
     <Container maxWidth="lg">
       {/* Cover and Main Profile Card */}
-      <SpotlightCard theme={mode} spotlightColor="113,216,240" intensity={0.16} spotlightSize={280} borderGlow={0.7} proximity={0} smoothing={0.18} style={{ padding: 0, borderRadius: 16, marginBottom: 24 }}>
+      <SpotlightCard theme={mode} spotlightColor={mode === 'dark' ? '255,255,255' : '0,0,0'} intensity={0.1} spotlightSize={280} borderGlow={0.7} proximity={0} smoothing={0.18} style={{ '--spotlight-card-surface': mode === 'dark' ? '#000000' : '#FFFFFF', '--spotlight-card-border': mode === 'dark' ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,.16)', padding: 0, borderRadius: 16, marginBottom: 24 }}>
       <Card sx={{ mb: 0, overflow: 'hidden', position: 'relative', bgcolor: 'transparent', boxShadow: 'none' }}>
         {/* Cover Banner */}
         <Box
@@ -260,7 +257,7 @@ const ProfilePage = () => {
             height: { xs: 140, sm: 220, md: 260 },
             backgroundImage: profile.coverImage
               ? `url(${profile.coverImage})`
-              : 'linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)',
+              : 'linear-gradient(135deg, rgba(0,0,0,.88) 0%, rgba(0,0,0,.24) 100%)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             position: 'relative',
@@ -311,7 +308,7 @@ const ProfilePage = () => {
                     bottom: 4,
                     right: 4,
                     bgcolor: 'primary.main',
-                    color: '#fff',
+                    color: 'primary.contrastText',
                     boxShadow: 2,
                     '&:hover': { bgcolor: 'primary.dark' },
                   }}
@@ -392,8 +389,8 @@ const ProfilePage = () => {
               {getBrandedHeadline(profile.headline) || 'Professional at Vuprise'}
             </Typography>
             {!isOwnProfile && (presence.state === 'online' || presence.state === 'offline') && <Stack direction="row" spacing={0.5} alignItems="center" role="status" sx={{ mt: 0.5 }}>
-              {presence.state === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: 'success.main' }} />}
-              <Typography variant="caption" color={presence.state === 'online' ? 'success.main' : 'text.secondary'}>{presence.state === 'online' ? 'Online' : formatLastSeen(presence.lastSeenAt) || 'Offline'}</Typography>
+              {presence.state === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: 'text.primary' }} />}
+              <Typography variant="caption" color="text.secondary">{presence.state === 'online' ? 'Online' : formatLastSeen(presence.lastSeenAt, presenceNow) || 'Offline'}</Typography>
             </Stack>}
 
             {/* Metadata Chips: Location, Company, Website */}

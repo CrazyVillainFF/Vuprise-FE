@@ -33,7 +33,7 @@ export const ProfileHeaderSkeleton = () => (
         sx={{
           position: 'absolute',
           top: -60,
-          border: '4px solid #fff',
+          border: (theme) => `4px solid ${theme.palette.background.paper}`,
         }}
       />
       <Box sx={{ mt: 7 }}>
