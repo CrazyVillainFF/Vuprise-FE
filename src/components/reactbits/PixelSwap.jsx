@@ -204,20 +204,23 @@ export default function PixelSwap({
       settings.onComplete?.(to);
     };
     const source = layerRefs.current[to ? 1 : 0];
-    if (!source || !frozenGrid.pixels.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!source || !frozenGrid.pixels.length) {
       finish();
       return undefined;
     }
 
-    const total = Math.max(200, settings.duration);
-    const pixelMs = clamp(settings.pixelDuration, 60, total);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Keep an explicit, user-initiated theme change animated even when reduced
+    // motion is enabled, but use a short, low-movement transition in that case.
+    const total = prefersReducedMotion ? 260 : Math.max(200, settings.duration);
+    const pixelMs = prefersReducedMotion ? 220 : clamp(settings.pixelDuration, 60, total);
     const spread = Math.max(0, total - pixelMs);
     const endScale = coverScale(frozenGrid.size, frozenGrid.gap, settings.pixelRadius);
     const keyframes = buildKeyframes({
       ease: makeEasing(settings.easing),
-      startScale: clamp(settings.pixelScale, 0.05, 1) * endScale,
+      startScale: (prefersReducedMotion ? 0.85 : clamp(settings.pixelScale, 0.05, 1)) * endScale,
       endScale,
-      spin: settings.pixelSpin,
+      spin: prefersReducedMotion ? 0 : settings.pixelSpin,
       fade: settings.fade
     });
 

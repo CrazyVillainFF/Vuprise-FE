@@ -149,14 +149,16 @@ const Navbar = () => {
                 firstContent={<LightModeOutlinedIcon fontSize="small" />}
                 secondContent={<DarkModeOutlinedIcon fontSize="small" />}
                 pixelSize={8}
-                duration={320}
-                pixelDuration={220}
-                pattern="diagonal"
-                randomness={0.08}
+                duration={1050}
+                pixelDuration={800}
+                pixelSpin={90}
+                pixelScale={0.25}
+                pattern="center"
+                randomness={0.04}
                 active={mode === 'dark'}
                 trigger="manual"
                 aspectRatio="1 / 1"
-                style={{ width: 22, height: 22 }}
+                style={{ width: 30, height: 30 }}
               />
             </IconButton>
           </Tooltip>
