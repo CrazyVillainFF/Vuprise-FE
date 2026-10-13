@@ -130,6 +130,7 @@ export const postAPI = {
   },
   deletePost: (id) => api.delete(`/posts/${id}`),
   toggleLike: (id) => api.post(`/posts/${id}/like`),
+  toggleReaction: (id, emoji) => api.put(`/posts/${id}/reactions`, { emoji }),
 };
 
 // ================= COMMENT APIs =================
