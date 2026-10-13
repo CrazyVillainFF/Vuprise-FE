@@ -19,12 +19,14 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
-  Alert
+  Alert,
+  Popover
 } from '@mui/material';
 import { getBrandedHeadline } from '../utils/brandCopy';
 import PulseHeart from './reactbits/PulseHeart';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
+import AddReactionOutlinedIcon from '@mui/icons-material/AddReactionOutlined';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
@@ -44,6 +46,9 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
 
   const [isLiked, setIsLiked] = useState(post.isLiked || false);
   const [likeCount, setLikeCount] = useState(post.likeCount || 0);
+  const [postReactions, setPostReactions] = useState(Array.isArray(post.reactions) ? post.reactions : []);
+  const [reactionAnchor, setReactionAnchor] = useState(null);
+  const [reacting, setReacting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState(post.comments || []);
   const [commentCount, setCommentCount] = useState(post.commentCount || (post.comments ? post.comments.length : 0));
@@ -90,6 +95,36 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
       setIsLiked(previousLiked);
       setLikeCount(previousCount);
       console.error('[Like Error]', err.message);
+    }
+  };
+
+  const handlePostReaction = async (emoji) => {
+    setReactionAnchor(null);
+    if (!isAuthenticated) {
+      navigate('/signin');
+      return;
+    }
+    if (reacting || !currentUser?._id) return;
+
+    const previousReactions = postReactions;
+    const userId = String(currentUser._id);
+    const existing = previousReactions.find((reaction) => String(reaction.user?._id || reaction.user) === userId);
+    const withoutMine = previousReactions.filter((reaction) => String(reaction.user?._id || reaction.user) !== userId);
+    const optimisticReactions = existing?.emoji === emoji
+      ? withoutMine
+      : [...withoutMine, { user: userId, emoji }];
+
+    setPostReactions(optimisticReactions);
+    setReacting(true);
+    try {
+      const response = await postAPI.toggleReaction(post._id, emoji);
+      setPostReactions(response.data.reactions || optimisticReactions);
+    } catch (error) {
+      setPostReactions(previousReactions);
+      setToastSeverity('error');
+      setToastMessage(error.message || 'Could not save your reaction. Please try again.');
+    } finally {
+      setReacting(false);
     }
   };
 
@@ -245,6 +280,12 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
       return part;
     });
   };
+
+  const postReactionCounts = postReactions.reduce((counts, reaction) => {
+    counts[reaction.emoji] = (counts[reaction.emoji] || 0) + 1;
+    return counts;
+  }, {});
+  const postReactionOptions = ['👍', '❤️', '🎉', '🤝', '💡', '😂'];
 
   return (
     <>
@@ -412,12 +453,15 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
         </CardContent>
 
         {/* Counts Bar */}
-        {(likeCount > 0 || commentCount > 0) && (
+        {(likeCount > 0 || commentCount > 0 || postReactions.length > 0) && (
           <Box sx={{ px: 2.5, py: 0.75 }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="caption" color="text.secondary">
-                {likeCount > 0 && `❤️ ${likeCount} ${likeCount === 1 ? 'like' : 'likes'}`}
-              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                {likeCount > 0 && <Typography variant="caption" color="text.secondary">❤️ {likeCount} {likeCount === 1 ? 'like' : 'likes'}</Typography>}
+                {Object.entries(postReactionCounts).map(([emoji, count]) => (
+                  <Typography key={emoji} variant="caption" color="text.secondary">{emoji} {count}</Typography>
+                ))}
+              </Stack>
               <Typography
                 variant="caption"
                 color="text.secondary"
@@ -451,6 +495,17 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
 
           <Button
             size="small"
+            startIcon={<AddReactionOutlinedIcon />}
+            onClick={(event) => isAuthenticated ? setReactionAnchor(event.currentTarget) : navigate('/signin')}
+            disabled={reacting}
+            aria-label="React to post"
+            sx={{ color: 'text.secondary', fontWeight: 600, flex: 1 }}
+          >
+            React
+          </Button>
+
+          <Button
+            size="small"
             startIcon={<ChatBubbleOutlineRoundedIcon />}
             onClick={handleToggleComments}
             sx={{ color: 'text.secondary', fontWeight: 600, flex: 1 }}
@@ -467,6 +522,29 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             Share
           </Button>
         </CardActions>
+
+        <Popover
+          open={Boolean(reactionAnchor)}
+          anchorEl={reactionAnchor}
+          onClose={() => setReactionAnchor(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Stack direction="row" spacing={0.25} sx={{ p: 0.5 }}>
+            {postReactionOptions.map((emoji) => (
+              <IconButton
+                key={emoji}
+                onClick={() => handlePostReaction(emoji)}
+                disabled={reacting}
+                aria-label={`React with ${emoji}`}
+                title={`React with ${emoji}`}
+                sx={{ fontSize: 20 }}
+              >
+                {emoji}
+              </IconButton>
+            ))}
+          </Stack>
+        </Popover>
 
         {/* Expandable Comments Section */}
         {showComments && (
