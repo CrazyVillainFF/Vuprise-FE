@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, Box, Avatar, Typography, LinearProgress, Button, Stack, Divider } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
+import VerifiedAccountBadge from './VerifiedAccountBadge';
 import PeopleOutlineRoundedIcon from '@mui/icons-material/PeopleOutlineRounded';
 import { isVerifiedAccount } from '../utils/verification';
 import { getBrandedHeadline } from '../utils/brandCopy';
@@ -58,7 +58,7 @@ const ProfileMiniCard = () => {
           >
             {user.name}
           </Typography>
-          {isVerifiedAccount(user) && <VerifiedRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />}
+          {isVerifiedAccount(user) && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} />}
         </Stack>
 
         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.825rem', mt: 0.5 }} noWrap>

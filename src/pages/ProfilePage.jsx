@@ -22,7 +22,7 @@ import {
   MenuItem
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
-import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
+import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
 import { isVerifiedAccount } from '../utils/verification';
 import { getBrandedHeadline } from '../utils/brandCopy';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
@@ -382,7 +382,7 @@ const ProfilePage = () => {
               <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em">
                 {profile.name}
               </Typography>
-              {isVerifiedAccount(profile) && <VerifiedRoundedIcon sx={{ fontSize: 24, color: 'primary.main' }} />}
+              {isVerifiedAccount(profile) && <VerifiedAccountBadge color={profile.verificationBadgeColor} size={24} />}
             </Stack>
 
             <Typography variant="h6" color="text.secondary" fontWeight={500} sx={{ mt: 0.5, maxWidth: 720 }}>

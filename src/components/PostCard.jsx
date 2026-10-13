@@ -37,6 +37,8 @@ import { useAuth } from '../context/AuthContext';
 import { postAPI, commentAPI } from '../services/api';
 import { formatTimeAgo } from '../utils/formatters';
 import ReportDialog from './ReportDialog';
+import VerifiedAccountBadge from './VerifiedAccountBadge';
+import { isVerifiedAccount } from '../utils/verification';
 
 const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
   const { user: currentUser, isAuthenticated } = useAuth();
@@ -280,7 +282,10 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
               sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
               onClick={() => navigate(`/profile/${author._id}`)}
             >
-              {author.name || 'Vuprise member'}
+              <Stack component="span" direction="row" alignItems="center" gap={0.5} sx={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                <span>{author.name || 'Vuprise member'}</span>
+                {isVerifiedAccount(author) && <VerifiedAccountBadge color={author.verificationBadgeColor} size={17} />}
+              </Stack>
             </Typography>
           }
           subheader={

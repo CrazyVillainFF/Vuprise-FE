@@ -39,6 +39,10 @@
   color: var(--pill-hover);
 }
 
+.pill-nav__link.is-active .pill-nav__hover-circle {
+  display: none;
+}
+
 .pill-nav__hover-circle {
   position: absolute;
   z-index: 0;
@@ -89,26 +93,7 @@
   text-align: center;
 }
 
-.pill-nav__label-stack {
-  position: relative;
-  display: inline-block;
-  overflow: hidden;
-  line-height: 1.15;
-}
-
-.pill-nav__label,
-.pill-nav__label-hover {
-  display: block;
-}
-
-.pill-nav__label-hover {
-  position: absolute;
-  inset: 0 auto auto 0;
-  color: var(--pill-hover);
-  opacity: 0;
-  transform: translateY(12px);
-  pointer-events: none;
-}
+.pill-nav__label { line-height: 1.15; }
 
 .pill-nav__link:focus-visible {
   outline: 2px solid var(--pill-hover);

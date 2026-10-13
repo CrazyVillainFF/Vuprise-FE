@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent,
-  DialogTitle, Divider, MenuItem, Pagination, Paper, Stack, Tab, Tabs, Table, TableBody,
+  Alert, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
+  DialogTitle, Divider, FormControlLabel, MenuItem, Pagination, Paper, Stack, Tab, Tabs, Table, TableBody,
   TableCell, TableHead, TableRow, TextField, Typography
 } from '@mui/material';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import StatusMark from '../components/reactbits/StatusMark';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
+import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
+import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
 import { adminAPI } from '../services/api';
 
 const sections = ['Users', 'Requests', 'Reports', 'Help'];
@@ -47,6 +48,13 @@ export default function AdminPage() {
   const [inboxStatus, setInboxStatus] = useState('pending');
   const [warningError, setWarningError] = useState('');
   const [reviewDraft, setReviewDraft] = useState({ status: 'pending', priority: 'normal', note: '', resolution: '', outcome: '' });
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [selectAllUsers, setSelectAllUsers] = useState(false);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastDraft, setBroadcastDraft] = useState('');
+  const [verificationTarget, setVerificationTarget] = useState(null);
+  const [verificationColor, setVerificationColor] = useState('blue');
+  const [verificationError, setVerificationError] = useState('');
 
   const loadOverview = useCallback(async () => {
     try { setOverview((await adminAPI.overview()).data.overview); } catch (e) { setError(e.message); }
@@ -86,14 +94,58 @@ export default function AdminPage() {
     finally { setSaving(false); }
   };
 
-  const toggleVerification = async (user) => {
-    const isVerifiedAccount = !Boolean(user.isVerifiedAccount);
+  const openVerification = (user) => {
+    setVerificationTarget(user);
+    setVerificationColor(user.verificationBadgeColor || 'blue');
+    setVerificationError('');
+  };
+
+  const saveVerification = async (isVerifiedAccount) => {
+    if (!verificationTarget) return;
+    setSaving(true); setError(''); setVerificationError('');
+    try {
+      const response = await adminAPI.setVerification(verificationTarget._id, isVerifiedAccount, verificationColor);
+      const savedColor = response.data.verificationBadgeColor;
+      if (isVerifiedAccount && savedColor !== verificationColor) {
+        throw new Error('The active backend did not confirm the selected badge color. Deploy/restart the latest Vuprise backend, then save the badge again.');
+      }
+      setRows((current) => current.map((user) => String(user._id) === String(verificationTarget._id)
+        ? { ...user, isVerifiedAccount, verificationBadgeColor: savedColor }
+        : user));
+      setNotice(response.data.message || (isVerifiedAccount ? 'Verified badge updated.' : 'Verified badge removed.'));
+      setVerificationTarget(null);
+      await loadRows();
+    } catch (e) {
+      const routeMissing = e.response?.status === 404 && /verification/i.test(e.response?.config?.url || '');
+      const message = routeMissing
+        ? 'The active backend does not include badge updates yet. Deploy/restart the latest Vuprise backend, then try again.'
+        : e.message || 'Could not update the verified badge.';
+      setVerificationError(message);
+      setError(message);
+    }
+    finally { setSaving(false); }
+  };
+
+  const toggleUserSelection = (userId) => setSelectedUserIds((current) => current.includes(userId)
+    ? current.filter((id) => id !== userId)
+    : [...current, userId]);
+  const allVisibleSelected = selectAllUsers || (rows.length > 0 && rows.every((user) => selectedUserIds.includes(String(user._id))));
+  const toggleVisibleSelection = () => setSelectedUserIds((current) => {
+    const visibleIds = rows.map((user) => String(user._id));
+    return allVisibleSelected ? current.filter((id) => !visibleIds.includes(id)) : [...new Set([...current, ...visibleIds])];
+  });
+  const sendBroadcast = async () => {
+    if (!broadcastDraft.trim()) return;
     setSaving(true); setError('');
     try {
-      const response = await adminAPI.setVerification(user._id, isVerifiedAccount);
-      setNotice(response.data.message || (isVerifiedAccount ? 'Verified badge added.' : 'Verified badge removed.'));
-      await loadRows();
-    } catch (e) { setError(e.message || 'Could not update the verified badge.'); }
+      const response = await adminAPI.broadcastMessage({
+        text: broadcastDraft.trim(),
+        selectAll: selectAllUsers,
+        recipientIds: selectAllUsers ? [] : selectedUserIds,
+      });
+      setNotice(response.data.message || 'Official message sent.');
+      setBroadcastOpen(false); setBroadcastDraft(''); setSelectedUserIds([]); setSelectAllUsers(false);
+    } catch (e) { setError(e.message || 'Could not send the official message.'); }
     finally { setSaving(false); }
   };
 
@@ -115,7 +167,7 @@ export default function AdminPage() {
     catch (e) { setError(e.message); } finally { setSaving(false); }
   };
 
-  const renderUserActions = (user) => <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} flexWrap="wrap" sx={{ gap: { xs: 0.25, sm: 0.5 }, minWidth: 0 }}><Button size="small" onClick={() => openDetail(user)}>View</Button>{user.moderationStatus !== 'deleted' && <Button size="small" disabled={saving} startIcon={<VerifiedRoundedIcon fontSize="small"/>} onClick={() => toggleVerification(user)}>{user.isVerifiedAccount ? 'Unverify' : 'Verify'}</Button>}{user.moderationStatus === 'active' && <><Button size="small" onClick={() => openAction(user, 'temporary_ban')}>Temp ban</Button><Button size="small" onClick={() => openAction(user, 'permanent_ban')}>Ban</Button><Button size="small" onClick={() => openAction(user, 'warning')}>Warn</Button></>}{['temporary_ban','permanent_ban'].includes(user.moderationStatus) && <Button size="small" onClick={() => openAction(user, 'lift_ban')}>Lift ban</Button>}{user.moderationStatus !== 'deleted' && <Button size="small" color="error" onClick={() => openAction(user, 'delete')}>Delete</Button>}</Stack>;
+  const renderUserActions = (user) => <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} flexWrap="wrap" sx={{ gap: { xs: 0.25, sm: 0.5 }, minWidth: 0 }}><Button size="small" onClick={() => openDetail(user)}>View</Button>{user.moderationStatus !== 'deleted' && <Button size="small" disabled={saving} startIcon={<VerifiedAccountBadge color={user.verificationBadgeColor} size={16}/>} onClick={() => openVerification(user)}>{user.isVerifiedAccount ? 'Badge' : 'Verify'}</Button>}{user.moderationStatus === 'active' && <><Button size="small" onClick={() => openAction(user, 'temporary_ban')}>Temp ban</Button><Button size="small" onClick={() => openAction(user, 'permanent_ban')}>Ban</Button><Button size="small" onClick={() => openAction(user, 'warning')}>Warn</Button></>}{['temporary_ban','permanent_ban'].includes(user.moderationStatus) && <Button size="small" onClick={() => openAction(user, 'lift_ban')}>Lift ban</Button>}{user.moderationStatus !== 'deleted' && <Button size="small" color="error" onClick={() => openAction(user, 'delete')}>Delete</Button>}</Stack>;
 
   return <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 1.25, sm: 1.5, md: 3 }, py: { xs: 1.5, md: 4 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1.5} sx={{ mb: 2.5 }}>
@@ -138,12 +190,56 @@ export default function AdminPage() {
           <TextField select size="small" label="Account status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} sx={{ minWidth: 200 }}><MenuItem value="">All accounts</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="temporary_ban">Temporary ban</MenuItem><MenuItem value="permanent_ban">Permanent ban</MenuItem><MenuItem value="deletion_pending">Deletion in progress</MenuItem><MenuItem value="deleted">Deleted</MenuItem></TextField>
         </> : <><Typography variant="h6" fontWeight={750} sx={{ flex: 1 }}>{sections[section]}</Typography><TextField select size="small" label="Status" value={inboxStatus} onChange={(e) => { setInboxStatus(e.target.value); setPage(1); }} sx={{ minWidth: 180 }}><MenuItem value="">All statuses</MenuItem><MenuItem value="pending">Pending</MenuItem><MenuItem value="under_review">Under review</MenuItem><MenuItem value="approved">Approved</MenuItem><MenuItem value="rejected">Rejected</MenuItem><MenuItem value="resolved">Resolved</MenuItem></TextField></>}
       </Stack>
+      {section === 0 && <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" gap={1} sx={{ px: 2, pb: 1.5 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={{ sm: 1.5 }}>
+          <FormControlLabel control={<Checkbox checked={selectAllUsers} onChange={(event) => { setSelectAllUsers(event.target.checked); if (event.target.checked) setSelectedUserIds([]); }}/>} label="Select all registered users" />
+          <Typography variant="body2" color="text.secondary">{selectAllUsers ? 'All eligible accounts except your admin account' : `${selectedUserIds.length} selected across pages`}</Typography>
+        </Stack>
+        <Button variant="contained" startIcon={<ChatBubbleOutlineRoundedIcon/>} disabled={!selectAllUsers && selectedUserIds.length === 0} onClick={() => setBroadcastOpen(true)}>Message users</Button>
+      </Stack>}
       {loading ? <Box sx={{ py: 9, textAlign: 'center', color: 'primary.main' }}><StatusMark status="running" label={`Loading ${sections[section].toLowerCase()}…`} size={22}/></Box> : rows.length === 0 ? <Box sx={{ py: 8, textAlign: 'center' }}><Typography variant="h6" fontWeight={750}>Nothing to review</Typography><Typography color="text.secondary">New items will appear here when submitted.</Typography></Box> : section === 0 ? <>
-        <Box sx={{ display: { xs: 'block', md: 'none' }, px: 1.25, pb: 1.25 }}><Stack spacing={1}>{rows.map((user) => <Paper key={user._id} variant="outlined" sx={{ p: 1.25, minWidth: 0, overflowWrap: 'anywhere' }}><Stack direction="row" gap={1} alignItems="center"><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0, flex: 1 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedRoundedIcon titleAccess="Verified account" sx={{ fontSize: 16, ml: 0.5, verticalAlign: 'text-bottom' }}/>}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{user.email}</Typography></Box><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'} sx={{ maxWidth: '45%' }}/></Stack><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>ID · {user._id}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Joined {new Date(user.createdAt).toLocaleDateString()}</Typography><Divider sx={{ my: 0.75 }}/>{renderUserActions(user)}</Paper>)}</Stack></Box>
-        <Box sx={{ display: { xs: 'none', md: 'block' }, maxWidth: '100%', overflowX: 'auto', overscrollBehaviorX: 'contain' }}><Table size="small" sx={{ minWidth: 780 }}><TableHead><TableRow><TableCell>User</TableCell><TableCell>User ID</TableCell><TableCell>Status</TableCell><TableCell>Joined</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead><TableBody>{rows.map((user) => <TableRow key={user._id} hover><TableCell><Stack direction="row" alignItems="center" gap={1.25}><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedRoundedIcon titleAccess="Verified account" sx={{ fontSize: 16, ml: 0.5, verticalAlign: 'text-bottom' }}/>}</Typography><Typography variant="body2" color="text.secondary">{user.email}</Typography></Box></Stack></TableCell><TableCell><Typography variant="caption">{user._id}</Typography></TableCell><TableCell><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'}/>{user.moderationExpiresAt && <Typography display="block" variant="caption">until {new Date(user.moderationExpiresAt).toLocaleString()}</Typography>}</TableCell><TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell><TableCell align="right">{renderUserActions(user)}</TableCell></TableRow>)}</TableBody></Table></Box>
+        <Box sx={{ display: { xs: 'block', md: 'none' }, px: 1.25, pb: 1.25 }}><Stack spacing={1}>{rows.map((user) => <Paper key={user._id} variant="outlined" sx={{ p: 1.25, minWidth: 0, overflowWrap: 'anywhere' }}><Stack direction="row" gap={1} alignItems="center"><Checkbox size="small" checked={selectAllUsers || selectedUserIds.includes(String(user._id))} disabled={selectAllUsers} onChange={() => toggleUserSelection(String(user._id))} inputProps={{ 'aria-label': `Select ${user.name}` }}/><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0, flex: 1 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} sx={{ ml: 0.5 }}/>}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{user.email}</Typography></Box><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'} sx={{ maxWidth: '45%' }}/></Stack><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>ID · {user._id}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Joined {new Date(user.createdAt).toLocaleDateString()}</Typography><Divider sx={{ my: 0.75 }}/>{renderUserActions(user)}</Paper>)}</Stack></Box>
+        <Box sx={{ display: { xs: 'none', md: 'block' }, maxWidth: '100%', overflowX: 'auto', overscrollBehaviorX: 'contain' }}><Table size="small" sx={{ minWidth: 820 }}><TableHead><TableRow><TableCell padding="checkbox"><Checkbox size="small" checked={allVisibleSelected} indeterminate={!selectAllUsers && selectedUserIds.some((id) => rows.some((user) => String(user._id) === id)) && !allVisibleSelected} disabled={selectAllUsers} onChange={toggleVisibleSelection} inputProps={{ 'aria-label': 'Select current page of users' }}/></TableCell><TableCell>User</TableCell><TableCell>User ID</TableCell><TableCell>Status</TableCell><TableCell>Joined</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead><TableBody>{rows.map((user) => <TableRow key={user._id} hover><TableCell padding="checkbox"><Checkbox size="small" checked={selectAllUsers || selectedUserIds.includes(String(user._id))} disabled={selectAllUsers} onChange={() => toggleUserSelection(String(user._id))} inputProps={{ 'aria-label': `Select ${user.name}` }}/></TableCell><TableCell><Stack direction="row" alignItems="center" gap={1.25}><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} sx={{ ml: 0.5 }}/>}</Typography><Typography variant="body2" color="text.secondary">{user.email}</Typography></Box></Stack></TableCell><TableCell><Typography variant="caption">{user._id}</Typography></TableCell><TableCell><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'}/>{user.moderationExpiresAt && <Typography display="block" variant="caption">until {new Date(user.moderationExpiresAt).toLocaleString()}</Typography>}</TableCell><TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell><TableCell align="right">{renderUserActions(user)}</TableCell></TableRow>)}</TableBody></Table></Box>
       </> : <Box sx={{ px: { xs: 1.25, sm: 2 }, minWidth: 0, maxWidth: '100%' }}><Stack divider={<Divider/>}>{rows.map((item) => <Stack key={item._id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} gap={1.5} sx={{ py: 1.5, minWidth: 0 }}><Box sx={{ flex: 1, minWidth: 0 }}><Stack direction="row" gap={1} alignItems="center"><Chip size="small" label={item.status.replace('_', ' ')}/><Typography fontWeight={750} sx={{ overflowWrap: 'anywhere' }}>{item.subject}</Typography></Stack><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.email} · {item.type.replaceAll('_', ' ')} · {new Date(item.createdAt).toLocaleString()}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.message}</Typography></Box><Button variant="outlined" onClick={() => openInbox(item)}>Review</Button></Stack>)}</Stack></Box>}
       {!loading && pages > 1 && <Stack alignItems="center" sx={{ p: 2 }}><Pagination page={page} count={pages} onChange={(_e, value) => setPage(value)} color="primary"/></Stack>}
     </Paper>
+
+    <Dialog open={broadcastOpen} onClose={() => !saving && setBroadcastOpen(false)} fullWidth maxWidth="sm" sx={adminDialogSx}>
+      <DialogTitle>Send an official Vuprise message</DialogTitle>
+      <DialogContent dividers>
+        <Stack gap={2}>
+          <Alert severity="info">Recipients receive separate private messages from <b>Vuprise</b> with its verified badge. Replies are not enabled for official messages.</Alert>
+          <Typography variant="body2" color="text.secondary">Sending to {selectAllUsers ? 'all eligible accounts except your admin account' : `${selectedUserIds.length} selected account${selectedUserIds.length === 1 ? '' : 's'}`}.</Typography>
+          <TextField label="Message" value={broadcastDraft} onChange={(event) => setBroadcastDraft(event.target.value.slice(0, 5000))} multiline minRows={4} inputProps={{ maxLength: 5000 }} required autoFocus />
+          <Typography variant="caption" color="text.secondary" align="right">{broadcastDraft.length}/5000</Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions><Button onClick={() => setBroadcastOpen(false)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={sendBroadcast} disabled={saving || !broadcastDraft.trim()}>{saving ? 'Sending…' : 'Send official message'}</Button></DialogActions>
+    </Dialog>
+
+    <Dialog open={Boolean(verificationTarget)} onClose={() => !saving && setVerificationTarget(null)} fullWidth maxWidth="xs" sx={adminDialogSx}>
+      <DialogTitle>{verificationTarget?.isVerifiedAccount ? 'Manage verified badge' : 'Verify this account'}</DialogTitle>
+      <DialogContent dividers>
+        <Stack gap={2}>
+          {verificationError && <Alert severity="error">{verificationError}</Alert>}
+          <Typography color="text.secondary">{verificationTarget?.name} · {verificationTarget?.email}</Typography>
+          <TextField select label="Badge color" value={verificationColor} onChange={(event) => setVerificationColor(event.target.value)}>
+            <MenuItem value="black"><Stack direction="row" alignItems="center" gap={1}><VerifiedAccountBadge color="black"/>Black · Verified</Stack></MenuItem>
+            <MenuItem value="blue"><Stack direction="row" alignItems="center" gap={1}><VerifiedAccountBadge color="blue"/>Blue · Vuprise Partner</Stack></MenuItem>
+            <MenuItem value="gold"><Stack direction="row" alignItems="center" gap={1}><VerifiedAccountBadge color="gold"/>Gold · VIP</Stack></MenuItem>
+          </TextField>
+          <Stack direction="row" alignItems="center" gap={1} sx={{ px: 1.25, py: 1, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+            <VerifiedAccountBadge color={verificationColor} size={22}/>
+            <Typography variant="body2" fontWeight={700}>Selected: {verificationColor === 'gold' ? 'Gold · VIP' : verificationColor === 'black' ? 'Black · Verified' : 'Blue · Vuprise Partner'}</Typography>
+          </Stack>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setVerificationTarget(null)} disabled={saving}>Cancel</Button>
+        {verificationTarget?.isVerifiedAccount && <Button color="error" onClick={() => saveVerification(false)} disabled={saving}>Unverify</Button>}
+        <Button variant="contained" onClick={() => saveVerification(true)} disabled={saving}>{saving ? 'Saving…' : verificationTarget?.isVerifiedAccount ? `Save ${verificationColor} badge` : `Verify as ${verificationColor}`}</Button>
+      </DialogActions>
+    </Dialog>
 
     <Dialog open={Boolean(action)} onClose={() => !saving && setAction('')} fullWidth maxWidth="sm" sx={adminDialogSx}>
       <DialogTitle>{({ temporary_ban: 'Temporarily ban user', permanent_ban: 'Permanently ban user', lift_ban: 'Lift account ban', warning: 'Issue warning', delete: 'Permanently delete user' })[action]}</DialogTitle>

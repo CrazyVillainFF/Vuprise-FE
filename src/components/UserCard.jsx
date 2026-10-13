@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, Box, Avatar, Typography, Stack, Chip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import ConnectionButton from './ConnectionButton';
-import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
+import VerifiedAccountBadge from './VerifiedAccountBadge';
 import BusinessCenterOutlinedIcon from '@mui/icons-material/BusinessCenterOutlined';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import { isVerifiedAccount } from '../utils/verification';
@@ -64,7 +64,7 @@ const UserCard = ({ user, onConnectionChanged }) => {
           <Typography variant="subtitle1" fontWeight={700} noWrap>
             {user.name}
           </Typography>
-          {isVerifiedAccount(user) && <VerifiedRoundedIcon sx={{ fontSize: 15, color: 'primary.main' }} />}
+          {isVerifiedAccount(user) && <VerifiedAccountBadge color={user.verificationBadgeColor} size={15} />}
         </Stack>
 
         <Typography

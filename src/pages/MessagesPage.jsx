@@ -29,6 +29,7 @@ import { sendTyping, subscribeRealtime, watchPresence } from '../services/realti
 import GroupChatPanel from './GroupChatPage';
 import MessageInteractions from '../components/MessageInteractions';
 import { formatLastSeen } from '../utils/presenceTime';
+import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
 const formatConversationTime = (value) => {
@@ -94,6 +95,7 @@ const MessagesPage = () => {
   const legacyTextCacheRef = useRef(new Map());
   const legacyDecryptPromisesRef = useRef(new Map());
   const selectedConversationId = useRef(null);
+  const officialSelectionHandled = useRef('');
   const messageRequestId = useRef(0);
   const openRequestId = useRef(0);
   const longPressTimer = useRef(null);
@@ -538,6 +540,29 @@ const MessagesPage = () => {
     }
   }, [active?._id, conversations, searchParams, setSearchParams, stopTyping]);
 
+  const openOfficialConversation = useCallback((conversation) => {
+    stopTyping();
+    setActiveGroup(null);
+    setAttachment(null);
+    setError('');
+    if (searchParams.has('group')) setSearchParams({}, { replace: true });
+    messageRequestId.current += 1;
+    selectedConversationId.current = conversation._id;
+    setMessages([]);
+    setLoadingMessages(true);
+    setActive({ ...conversation, readOnly: true });
+  }, [searchParams, setSearchParams, stopTyping]);
+
+  useEffect(() => {
+    const requestedId = searchParams.get('official');
+    if (!requestedId) { officialSelectionHandled.current = ''; return; }
+    if (loading || officialSelectionHandled.current === requestedId) return;
+    const conversation = conversations.find((item) => item.isOfficialBroadcast && String(item._id) === String(requestedId));
+    if (!conversation) return;
+    officialSelectionHandled.current = requestedId;
+    openOfficialConversation(conversation);
+  }, [conversations, loading, openOfficialConversation, searchParams]);
+
   const openGroupConversation = (group) => {
     stopTyping();
     setError('');
@@ -663,13 +688,18 @@ const MessagesPage = () => {
       type: 'group', group, index,
       activity: group.lastMessageAt || group.lastMessage?.createdAt || group.updatedAt || null,
     }));
-    return [...privateItems, ...groupItems].sort((a, b) => {
+    const query = search.trim().toLocaleLowerCase();
+    const officialItems = conversations
+      .filter((conversation) => conversation.isOfficialBroadcast)
+      .filter((conversation) => !query || `vuprise official message ${conversation.lastMessage?.text || ''}`.toLocaleLowerCase().includes(query))
+      .map((conversation, index) => ({ type: 'official', conversation, index, activity: conversation.lastMessageAt || conversation.lastMessage?.createdAt || null }));
+    return [...privateItems, ...groupItems, ...officialItems].sort((a, b) => {
       if (!a.activity && !b.activity) return a.type === b.type ? a.index - b.index : a.type === 'group' ? -1 : 1;
       if (!a.activity) return 1;
       if (!b.activity) return -1;
       return new Date(b.activity).getTime() - new Date(a.activity).getTime();
     });
-  }, [conversations, filteredContacts, filteredGroups]);
+  }, [conversations, filteredContacts, filteredGroups, search]);
 
   const handleComposerKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -772,6 +802,18 @@ const MessagesPage = () => {
               {chatItems.length ? (
                 <List disablePadding>
                   {chatItems.map((item) => {
+                    if (item.type === 'official') {
+                      const { conversation } = item;
+                      const snippet = conversation.lastMessage?.deletedForEveryone
+                        ? 'This message was deleted'
+                        : conversation.lastMessage?.text || (conversation.lastMessage?.imageUrl ? 'Photo' : 'Official message');
+                      const unreadCount = unreadMessagesByConversation[String(conversation._id)] ?? conversation.unreadCount ?? 0;
+                      return <ListItem key={`official-${conversation._id}`} disablePadding><ListItemButton selected={String(active?._id) === String(conversation._id)} onClick={() => openOfficialConversation(conversation)} aria-label="Open official message from Vuprise" sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&.Mui-selected': { bgcolor: 'action.selected' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}>
+                        <ListItemAvatar sx={{ minWidth: 62 }}><Avatar alt="Vuprise" sx={{ width: 50, height: 50 }}>V</Avatar></ListItemAvatar>
+                        <ListItemText primary={<Stack direction="row" alignItems="center" gap={0.5}><Typography component="span" noWrap fontWeight={750}>Vuprise</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={snippet} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}/>
+                        <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>{item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}{unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}</Stack>
+                      </ListItemButton></ListItem>;
+                    }
                     if (item.type === 'group') {
                       const { group } = item;
                       const lastMessage = group.lastMessage;
@@ -900,14 +942,17 @@ const MessagesPage = () => {
                 <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
                   {mobile && <IconButton aria-label="Back to chats" onClick={() => { stopTyping(); selectedConversationId.current = null; setActive(null); setMessages([]); }} size="small"><ArrowBackRoundedIcon /></IconButton>}
                   <ButtonBase
-                    onClick={() => navigate(`/profile/${active.peer._id}`)}
-                    aria-label={`View ${active.peer.name || 'user'}'s profile`}
-                    sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, minWidth: 0, flex: 1, borderRadius: 2, textAlign: 'left', p: 0.5, ml: -0.5, '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}
+                    onClick={() => { if (!active.isOfficialBroadcast) navigate(`/profile/${active.peer._id}`); }}
+                    aria-label={active.isOfficialBroadcast ? 'Official Vuprise account' : `View ${active.peer.name || 'user'}'s profile`}
+                    sx={{ display: 'flex', justifyContent: 'flex-start', gap: 1.25, minWidth: 0, flex: 1, borderRadius: 2, textAlign: 'left', p: 0.5, ml: -0.5, cursor: active.isOfficialBroadcast ? 'default' : 'pointer', '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}
                   >
-                    <Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[active.peer._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
+                    <Badge overlap="circular" variant="dot" color="success" invisible={active.isOfficialBroadcast || presenceByUser[active.peer._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
                     <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="subtitle1" fontWeight={700} noWrap>{active.displayName || active.peer.name}</Typography>
-                      <Typography variant="caption" color="text.secondary" noWrap>{presenceByUser[active.peer._id]?.state === 'online' ? 'Online' : presenceByUser[active.peer._id]?.state === 'offline' ? formatLastSeen(presenceByUser[active.peer._id]?.lastSeenAt, presenceNow) || 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
+                      <Stack direction="row" alignItems="center" gap={0.5}>
+                        <Typography variant="subtitle1" fontWeight={700} noWrap>{active.isOfficialBroadcast ? 'Vuprise' : active.displayName || active.peer.name}</Typography>
+                        {active.isOfficialBroadcast && <VerifiedAccountBadge color="gold" size={17}/>}
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" noWrap>{active.isOfficialBroadcast ? 'Official Vuprise message' : presenceByUser[active.peer._id]?.state === 'online' ? 'Online' : presenceByUser[active.peer._id]?.state === 'offline' ? formatLastSeen(presenceByUser[active.peer._id]?.lastSeenAt, presenceNow) || 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
                     </Box>
                   </ButtonBase>
                 </Stack>
@@ -945,6 +990,7 @@ const MessagesPage = () => {
                   {Object.keys(typingByScope[`conversation:${active._id}`] || {}).length > 0 && <TypingIndicator label={`${Object.values(typingByScope[`conversation:${active._id}`]).map((entry) => entry.name).join(', ')} typing`} sx={{ alignSelf: 'flex-start', minHeight: 22 }} />}
                   <div ref={bottomRef} />
                 </Box>
+                {active.readOnly ? <Alert severity="info" sx={{ m: 1.25 }}>This is an official message from Vuprise. Replies are not available.</Alert> : <>
                 {attachment && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={attachmentPreview} alt="Image preview" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
                 <Box component="form" onSubmit={sendMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: attachment ? 0 : 1, borderColor: 'divider', display: 'flex', gap: 0.5, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
                   <input ref={imageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleMessageImageSelect} aria-label="Attach an image" />
@@ -968,6 +1014,7 @@ const MessagesPage = () => {
                     {sending ? <CircularProgress size={18} color="inherit" /> : <SendRoundedIcon />}
                   </Button>
                 </Box>
+                </>}
               </>
             ) : (
               <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, minHeight: 0, p: 4, textAlign: 'center' }}>

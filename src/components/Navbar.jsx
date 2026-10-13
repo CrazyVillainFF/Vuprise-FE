@@ -129,7 +129,7 @@ const Navbar = () => {
               >
                 <Box component="span" sx={{ display: { lg: 'none', xl: 'inline' } }}>Create post</Box>
               </Button>
-              <PillNav items={navItems.map((item) => ({ href: item.path, label: item.label, icon: item.icon, badge: item.badge }))} activeHref={location.pathname} baseColor={theme.palette.text.secondary} pillColor={theme.palette.action.selected} hoveredPillTextColor={theme.palette.primary.main} pillTextColor={theme.palette.text.secondary} />
+              <PillNav items={navItems.map((item) => ({ href: item.path, label: item.label, icon: item.icon, badge: item.badge }))} activeHref={location.pathname} baseColor={theme.palette.text.secondary} pillColor={theme.palette.text.primary} hoveredPillTextColor={theme.palette.background.default} pillTextColor={theme.palette.text.secondary} />
             </Stack>
           ) : (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', display: { xs: 'none', sm: 'flex' } }}>

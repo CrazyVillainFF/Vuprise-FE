@@ -24,6 +24,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
 import { connectionAPI, groupAPI } from '../services/api';
 
 import { useNotifications } from '../context/NotificationContext';
@@ -81,6 +82,8 @@ const NotificationsPage = () => {
         return <CheckCircleRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
       case 'group_invitation':
         return <GroupsRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />;
+      case 'official_message':
+        return <ChatBubbleRoundedIcon sx={{ fontSize: 16, color: '#d4a017' }} />;
       default:
         return <NotificationsActiveOutlinedIcon sx={{ fontSize: 16, color: 'primary.main' }} />;
     }
@@ -91,7 +94,10 @@ const NotificationsPage = () => {
     if (!item.read) {
       markAsRead(item._id);
     }
-    if (item.type === 'connection_request' || item.type === 'connection_accepted') {
+    if (item.type === 'official_message') {
+      const conversationId = item.conversation?._id || item.conversation;
+      if (conversationId) navigate(`/messages?official=${encodeURIComponent(conversationId)}`);
+    } else if (item.type === 'connection_request' || item.type === 'connection_accepted') {
       if (item.type === 'connection_request') {
         navigate('/people');
       } else {
@@ -188,7 +194,7 @@ const NotificationsPage = () => {
       ) : filteredNotifications.length > 0 ? (
         <Card sx={{ overflow: 'hidden' }}>
           {filteredNotifications.map((item, index) => {
-            const sender = item.sender || {};
+            const sender = item.type === 'official_message' ? { name: 'Vuprise' } : item.sender || {};
             return (
               <Box key={item._id}>
                   <Box
@@ -245,6 +251,7 @@ const NotificationsPage = () => {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: item.read ? 500 : 700, overflowWrap: 'anywhere' }}>
                         {item.message}
+                        {item.type === 'official_message' && <VerifiedAccountBadge color="gold" size={16} sx={{ ml: 0.6, verticalAlign: 'middle' }} />}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {formatTimeAgo(item.createdAt)}
