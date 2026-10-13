@@ -18,7 +18,6 @@ const MainLayout = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isMobileMessages = location.pathname === '/messages' && isMobile;
-  const isLandingPage = location.pathname === '/';
   const { incomingToast, dismissIncomingToast } = useNotifications();
 
   useEffect(() => {
@@ -50,7 +49,7 @@ const MainLayout = () => {
       isolation: 'isolate',
       zIndex: 1,
     }}>
-      {!isLandingPage && <SiteBackdrop />}
+      <SiteBackdrop />
       <Navbar />
       <Box
         component="main"

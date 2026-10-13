@@ -22,9 +22,9 @@ const SiteBackdrop = () => {
       density={0.6}
       speed={0.22}
       spin={0.12}
-      glow={0.08}
+      glow={0.2}
       chromaticAberration={0}
-      spread={0.72}
+      spread={0.82}
       paused={false}
     />
   );
