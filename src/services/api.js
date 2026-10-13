@@ -73,6 +73,7 @@ export const adminAPI = {
   users: (params) => api.get('/admin/users', { params }),
   user: (id) => api.get(`/admin/users/${id}`),
   userPosts: (id, params) => api.get(`/admin/users/${id}/posts`, { params }),
+  setVerification: (id, isVerifiedAccount) => api.put(`/admin/users/${id}/verification`, { isVerifiedAccount }),
   temporaryBan: (id, data) => api.post(`/admin/users/${id}/temporary-ban`, data),
   permanentBan: (id, data) => api.post(`/admin/users/${id}/permanent-ban`, data),
   liftBan: (id, data = {}) => api.post(`/admin/users/${id}/lift-ban`, data),

@@ -1,7 +1,7 @@
 const VERIFIED_EMAIL = 'vishnubangaru001@gmail.com';
 
 export const isVerifiedAccount = (value) => {
-  if (value && typeof value === 'object' && value.isVerifiedAccount === true) return true;
+  if (value && typeof value === 'object' && typeof value.isVerifiedAccount === 'boolean') return value.isVerifiedAccount;
   const email = typeof value === 'string' ? value : value?.email;
   return typeof email === 'string' && email.trim().toLowerCase() === VERIFIED_EMAIL;
 };
