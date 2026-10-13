@@ -93,7 +93,7 @@ const LandingPage = () => {
           <Grid size={{ xs: 12, md: 5 }}>
             <Box sx={{ minHeight: { xs: 230, sm: 320, md: 440 }, position: 'relative', display: 'grid', placeItems: 'center', '&::before': { content: '""', position: 'absolute', inset: '12%', borderRadius: '50%', background: dark ? 'radial-gradient(circle, rgba(255,255,255,.18), rgba(255,255,255,.055) 34%, transparent 70%)' : 'radial-gradient(circle, rgba(0,0,0,.12), rgba(0,0,0,.035) 34%, transparent 70%)', filter: 'blur(18px)', pointerEvents: 'none' } }}>
               <Box sx={{ width: { xs: 184, sm: 220, md: 260 }, height: { xs: 184, sm: 220, md: 260 }, borderRadius: '24%', position: 'relative', zIndex: 1, filter: dark ? 'drop-shadow(0 0 24px rgba(255,255,255,.34))' : 'drop-shadow(0 0 20px rgba(0,0,0,.18))' }}>
-                <ReactableMark size="100%" electric interactive symbolOnly />
+                <ReactableMark size="100%" electric interactive symbolOnly transparentBackground />
               </Box>
             </Box>
           </Grid>

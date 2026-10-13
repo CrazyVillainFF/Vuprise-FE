@@ -3,7 +3,7 @@ import { Box, useMediaQuery } from '@mui/material';
 import ElectricLogo from './reactbits/ElectricLogo';
 import { useThemeMode } from '../theme/ThemeContext';
 
-const ReactableMark = ({ size = 38, electric = false, interactive = false, symbolOnly = false }) => {
+const ReactableMark = ({ size = 38, electric = false, interactive = false, symbolOnly = false, transparentBackground = false }) => {
   const { mode } = useThemeMode();
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   return (
@@ -19,7 +19,7 @@ const ReactableMark = ({ size = 38, electric = false, interactive = false, symbo
         placeItems: 'center',
         overflow: 'hidden',
         borderRadius: '22%',
-        background: '#000000',
+        background: transparentBackground ? 'transparent' : '#000000',
       }}
     >
       <Box
