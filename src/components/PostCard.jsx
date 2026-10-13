@@ -39,6 +39,7 @@ import { useAuth } from '../context/AuthContext';
 import { postAPI, commentAPI } from '../services/api';
 import { formatTimeAgo } from '../utils/formatters';
 import ReportDialog from './ReportDialog';
+import { togglePostReactionState } from '../utils/postReactionState';
 
 const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
   const { user: currentUser, isAuthenticated } = useAuth();
@@ -107,12 +108,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
     if (reacting || !currentUser?._id) return;
 
     const previousReactions = postReactions;
-    const userId = String(currentUser._id);
-    const existing = previousReactions.find((reaction) => String(reaction.user?._id || reaction.user) === userId);
-    const withoutMine = previousReactions.filter((reaction) => String(reaction.user?._id || reaction.user) !== userId);
-    const optimisticReactions = existing?.emoji === emoji
-      ? withoutMine
-      : [...withoutMine, { user: userId, emoji }];
+    const optimisticReactions = togglePostReactionState(previousReactions, currentUser._id, emoji);
 
     setPostReactions(optimisticReactions);
     setReacting(true);
