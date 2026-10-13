@@ -75,6 +75,7 @@ export const adminAPI = {
   userPosts: (id, params) => api.get(`/admin/users/${id}/posts`, { params }),
   setVerification: (id, isVerifiedAccount, verificationBadgeColor) => api.put(`/admin/users/${id}/verification`, { isVerifiedAccount, verificationBadgeColor }),
   broadcastMessage: (data) => api.post('/admin/messages/broadcast', data),
+  broadcastMessages: (params) => api.get('/admin/messages/broadcast', { params }),
   temporaryBan: (id, data) => api.post(`/admin/users/${id}/temporary-ban`, data),
   permanentBan: (id, data) => api.post(`/admin/users/${id}/permanent-ban`, data),
   liftBan: (id, data = {}) => api.post(`/admin/users/${id}/lift-ban`, data),

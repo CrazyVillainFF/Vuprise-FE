@@ -33,6 +33,11 @@ import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
 import { isVerifiedAccount } from '../utils/verification';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
+const truncateChatPreview = (value) => {
+  const text = String(value || '').trim();
+  const characters = Array.from(text);
+  return characters.length > 8 ? `${characters.slice(0, 8).join('')}....` : text;
+};
 const formatConversationTime = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -809,11 +814,10 @@ const MessagesPage = () => {
                         ? 'This message was deleted'
                         : conversation.lastMessage?.text || (conversation.lastMessage?.imageUrl ? 'Photo' : 'Official message');
                       const unreadCount = unreadMessagesByConversation[String(conversation._id)] ?? conversation.unreadCount ?? 0;
-                      const sentByAdmin = Boolean(conversation.officialViewerIsSender);
-                      const officialTitle = sentByAdmin ? `Vuprise → ${conversation.officialRecipient?.name || conversation.peer?.name || 'recipient'}` : 'Vuprise';
-                      return <ListItem key={`official-${conversation._id}`} disablePadding><ListItemButton selected={String(active?._id) === String(conversation._id)} onClick={() => openOfficialConversation(conversation)} aria-label={sentByAdmin ? `Open official message sent to ${conversation.officialRecipient?.name || conversation.peer?.name || 'recipient'}` : 'Open official message from Vuprise'} sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&.Mui-selected': { bgcolor: 'action.selected' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}>
+                      const officialTitle = 'Vuprise';
+                      return <ListItem key={`official-${conversation._id}`} disablePadding><ListItemButton selected={String(active?._id) === String(conversation._id)} onClick={() => openOfficialConversation(conversation)} aria-label="Open official message from Vuprise" sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&.Mui-selected': { bgcolor: 'action.selected' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}>
                         <ListItemAvatar sx={{ minWidth: 62 }}><Avatar src="/vuprise-gold-profile.png" alt={officialTitle} sx={{ width: 50, height: 50 }}>V</Avatar></ListItemAvatar>
-                        <ListItemText primary={<Stack direction="row" alignItems="center" gap={0.5}><Typography component="span" noWrap fontWeight={750}>{officialTitle}</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={snippet} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}/>
+                        <ListItemText primary={<Stack direction="row" alignItems="center" gap={0.5}><Typography component="span" noWrap fontWeight={750}>{officialTitle}</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={truncateChatPreview(snippet)} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}/>
                         <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>{item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}{unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}</Stack>
                       </ListItemButton></ListItem>;
                     }
@@ -839,7 +843,7 @@ const MessagesPage = () => {
                             </ListItemAvatar>
                             <ListItemText
                               primary={group.name || 'Group chat'}
-                              secondary={isGroupTyping ? <TypingIndicator label="Typing…" compact /> : groupPreview}
+                              secondary={isGroupTyping ? <TypingIndicator label="Typing…" compact /> : groupSnippet ? `${senderName}: ${truncateChatPreview(groupSnippet)}` : groupPreview}
                               primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
                               secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                             />
@@ -904,7 +908,7 @@ const MessagesPage = () => {
                           primary={<Stack component="span" direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
                           secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
                             ? <TypingIndicator label="Typing…" compact />
-                            : preview}
+                            : hasMessages && conversation.lastMessage.text ? truncateChatPreview(preview) : preview}
                           primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
                           secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                         />
