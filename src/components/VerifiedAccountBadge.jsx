@@ -5,7 +5,7 @@ import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 const badgeColors = {
   black: '#000000',
   blue: '#2587ff',
-  gold: '#d4a017',
+  gold: '#ffd23f',
 };
 
 const badgeLabels = {

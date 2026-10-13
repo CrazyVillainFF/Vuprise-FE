@@ -30,6 +30,7 @@ import GroupChatPanel from './GroupChatPage';
 import MessageInteractions from '../components/MessageInteractions';
 import { formatLastSeen } from '../utils/presenceTime';
 import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
+import { isVerifiedAccount } from '../utils/verification';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
 const formatConversationTime = (value) => {
@@ -849,6 +850,7 @@ const MessagesPage = () => {
                       );
                     }
                     const { contact, conversation } = item;
+                    const badgeUser = conversation?.peer || contact;
                     const hasMessages = Boolean(conversation?.lastMessage);
                     const unreadCount = conversation
                       ? (unreadMessagesByConversation[String(conversation._id)] ?? conversation.unreadCount ?? 0)
@@ -897,7 +899,7 @@ const MessagesPage = () => {
                       >
                         <ListItemAvatar sx={{ minWidth: 62 }}><Badge overlap="circular" variant="dot" color="success" invisible={presenceByUser[contact._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
                         <ListItemText
-                          primary={conversation?.displayName || contact.name || 'Vuprise member'}
+                          primary={<Stack component="span" direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
                           secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
                             ? <TypingIndicator label="Typing…" compact />
                             : preview}
@@ -950,7 +952,9 @@ const MessagesPage = () => {
                     <Box sx={{ minWidth: 0 }}>
                       <Stack direction="row" alignItems="center" gap={0.5}>
                         <Typography variant="subtitle1" fontWeight={700} noWrap>{active.isOfficialBroadcast ? 'Vuprise' : active.displayName || active.peer.name}</Typography>
-                        {active.isOfficialBroadcast && <VerifiedAccountBadge color="gold" size={17}/>}
+                        {active.isOfficialBroadcast
+                          ? <VerifiedAccountBadge color="gold" size={17}/>
+                          : isVerifiedAccount(active.peer) && <VerifiedAccountBadge color={active.peer.verificationBadgeColor} size={17}/>}
                       </Stack>
                       <Typography variant="caption" color="text.secondary" noWrap>{active.isOfficialBroadcast ? 'Official Vuprise message' : presenceByUser[active.peer._id]?.state === 'online' ? 'Online' : presenceByUser[active.peer._id]?.state === 'offline' ? formatLastSeen(presenceByUser[active.peer._id]?.lastSeenAt, presenceNow) || 'Offline' : getBrandedHeadline(active.peer.headline) || 'Vuprise connection'}</Typography>
                     </Box>
