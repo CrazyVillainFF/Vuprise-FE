@@ -194,7 +194,9 @@ const NotificationsPage = () => {
       ) : filteredNotifications.length > 0 ? (
         <Card sx={{ overflow: 'hidden' }}>
           {filteredNotifications.map((item, index) => {
-            const sender = item.type === 'official_message' ? { name: 'Vuprise' } : item.sender || {};
+            const sender = item.type === 'official_message'
+              ? { name: 'Vuprise', profilePicture: '/vuprise-gold-profile.png' }
+              : item.sender || {};
             return (
               <Box key={item._id}>
                   <Box
