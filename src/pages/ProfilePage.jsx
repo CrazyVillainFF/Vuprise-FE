@@ -389,7 +389,7 @@ const ProfilePage = () => {
               {getBrandedHeadline(profile.headline) || 'Professional at Vuprise'}
             </Typography>
             {!isOwnProfile && (presence.state === 'online' || presence.state === 'offline') && <Stack direction="row" spacing={0.5} alignItems="center" role="status" sx={{ mt: 0.5 }}>
-              {presence.state === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: 'text.primary' }} />}
+              {presence.state === 'online' && <FiberManualRecordRoundedIcon sx={{ fontSize: 10, color: '#22c55e' }} />}
               <Typography variant="caption" color="text.secondary">{presence.state === 'online' ? 'Online' : formatLastSeen(presence.lastSeenAt, presenceNow) || 'Offline'}</Typography>
             </Stack>}
 
