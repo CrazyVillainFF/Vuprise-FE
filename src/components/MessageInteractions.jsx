@@ -4,6 +4,7 @@ import AddReactionOutlinedIcon from '@mui/icons-material/AddReactionOutlined';
 import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import { groupAPI, messageAPI, supportAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { toggleMessageReactionState } from '../utils/messageReactionState';
 
 const reactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 export default function MessageInteractions({ message, scope, threadId, onReactions, canReport = false }) {
@@ -16,20 +17,33 @@ export default function MessageInteractions({ message, scope, threadId, onReacti
   const [sent, setSent] = useState(false);
   const list = Array.isArray(message.reactions) ? message.reactions : [];
   const chooseReaction = async (emoji) => {
-    setAnchor(null); setBusy(true); setError('');
+    setAnchor(null);
+    if (busy) return;
+    const previousReactions = list;
+    const optimisticReactions = toggleMessageReactionState(previousReactions, user?._id, emoji);
+    setBusy(true);
+    setError('');
+    onReactions?.(message._id, optimisticReactions);
+
     try {
       const response = scope === 'group'
         ? await groupAPI.toggleReaction(threadId, message._id, emoji)
         : await messageAPI.toggleReaction(threadId, message._id, emoji);
       onReactions?.(message._id, response.data.reactions || []);
     } catch (err) {
-      const message = err.response?.data?.message || '';
-      const missingReactionRoute = err.response?.status === 404 && /Resource not found.*\/reactions/i.test(message);
+      onReactions?.(message._id, previousReactions);
+      const responseMessage = typeof err.response?.data === 'string'
+        ? err.response.data
+        : err.response?.data?.message || '';
+      const missingReactionRoute = err.response?.status === 404 &&
+        /\/reactions/i.test(responseMessage) &&
+        /(resource not found|cannot (put|post)|not found)/i.test(responseMessage);
       setError(missingReactionRoute
-        ? 'The active backend does not have the reaction route yet. Redeploy the latest Vuprise backend, then reload this chat.'
-        : message || 'Could not save this reaction.');
+        ? 'The deployed Vuprise backend is missing the message-reaction route. Deploy the current Vuprise-BE main branch, then reload this chat.'
+        : responseMessage || err.message || 'Could not save this reaction. Please try again.');
+    } finally {
+      setBusy(false);
     }
-    finally { setBusy(false); }
   };
   const submitReport = async () => {
     const clean = reason.trim();
