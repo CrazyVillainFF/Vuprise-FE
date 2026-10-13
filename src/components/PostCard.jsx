@@ -441,7 +441,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             showCount={false}
             size={20}
             corner={12}
-            likedColor="currentColor"
+            likedColor="#E11D48"
             idleColor="currentColor"
             pillColor="transparent"
             textColor="currentColor"

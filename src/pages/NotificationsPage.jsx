@@ -72,7 +72,7 @@ const NotificationsPage = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'post_like':
-        return <FavoriteRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
+        return <FavoriteRoundedIcon sx={{ fontSize: 16, color: '#E11D48' }} />;
       case 'post_comment':
         return <ChatBubbleRoundedIcon sx={{ fontSize: 16, color: 'text.primary' }} />;
       case 'connection_request':
