@@ -1,25 +1,48 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Container, Box, Stack, Chip, Typography, Button, CircularProgress, Alert, LinearProgress } from '@mui/material';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Container, Box, Stack, Chip, Typography, Button, CircularProgress, Alert, LinearProgress, Fab, Menu, MenuItem } from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import { PostSkeleton } from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
-import { postAPI } from '../services/api';
+import { connectionAPI, postAPI } from '../services/api';
+import { feedConnectionStatus } from '../utils/connectionState';
 import DynamicFeedIcon from '@mui/icons-material/DynamicFeed';
 import RightWidgets from '../components/RightWidgets';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import MovieCreationRoundedIcon from '@mui/icons-material/MovieCreationRounded';
+import { useAuth } from '../context/AuthContext';
 
 const FILTER_TOPICS = ['All', 'designsystems', 'ai', 'distributedsystems', 'startups', 'leadership'];
+const homeFeedCache = new Map();
 
 const HomePage = () => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const cachedFeed = homeFeedCache.get(String(user?._id));
+  const [posts, setPosts] = useState(() => cachedFeed?.posts || []);
+  const [loading, setLoading] = useState(() => !cachedFeed);
   const [error, setError] = useState(null);
-  const [selectedTag, setSelectedTag] = useState('All');
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [selectedTag, setSelectedTag] = useState(() => cachedFeed?.selectedTag || 'All');
+  const [page, setPage] = useState(() => cachedFeed?.page || 1);
+  const [hasMore, setHasMore] = useState(() => cachedFeed?.hasMore ?? true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [feedHasLoaded, setFeedHasLoaded] = useState(false);
-  const hasLoadedFeed = useRef(false);
+  const [feedHasLoaded, setFeedHasLoaded] = useState(() => Boolean(cachedFeed));
+  const [createMenuAnchor, setCreateMenuAnchor] = useState(null);
+  const [resolvedConnections, setResolvedConnections] = useState([]);
+  const hasLoadedFeed = useRef(Boolean(cachedFeed));
+  const resolvedViewer = useMemo(() => ({ ...user, connections: resolvedConnections }), [resolvedConnections, user]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user?._id) { setResolvedConnections([]); return undefined; }
+    connectionAPI.getConnections()
+      .then((response) => { if (active) setResolvedConnections(response.data?.connections || []); })
+      .catch(() => { if (active) setResolvedConnections(user.connections || []); });
+    return () => { active = false; };
+  }, [user?._id]);
 
   const fetchFeed = useCallback(async (tag = selectedTag, pageNum = 1, append = false) => {
     try {
@@ -47,8 +70,14 @@ const HomePage = () => {
   }, [selectedTag]);
 
   useEffect(() => {
+    if (hasLoadedFeed.current) return;
     fetchFeed(selectedTag, 1, false);
   }, [fetchFeed, selectedTag]);
+
+  useEffect(() => {
+    if (!user?._id || !feedHasLoaded) return;
+    homeFeedCache.set(String(user._id), { posts, page, hasMore, selectedTag });
+  }, [feedHasLoaded, hasMore, page, posts, selectedTag, user?._id]);
 
   useEffect(() => {
     const handleCreated = (event) => {
@@ -57,6 +86,15 @@ const HomePage = () => {
     window.addEventListener('nexora:post-created', handleCreated);
     return () => window.removeEventListener('nexora:post-created', handleCreated);
   }, []);
+
+  useEffect(() => {
+    const restoreY = location.state?.restoreHomeScrollY;
+    if (Number.isFinite(restoreY) && feedHasLoaded) {
+      requestAnimationFrame(() => window.scrollTo(0, restoreY));
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    return undefined;
+  }, [feedHasLoaded, location.pathname, location.state, navigate]);
 
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
@@ -67,9 +105,25 @@ const HomePage = () => {
   };
 
   const openComposer = () => window.dispatchEvent(new Event('nexora:create-post'));
+  const openCreateFlow = (reelMode) => {
+    setCreateMenuAnchor(null);
+    window.dispatchEvent(new CustomEvent('nexora:create-post', { detail: { reelMode } }));
+  };
 
   return (
     <Container maxWidth="xl" sx={{ width: '100%', minWidth: 0 }}>
+      <Fab
+        color="primary"
+        aria-label="Create post or Reel"
+        aria-haspopup="menu"
+        aria-expanded={Boolean(createMenuAnchor)}
+        onClick={(event) => setCreateMenuAnchor(event.currentTarget)}
+        sx={{ position: 'fixed', left: 'max(16px, env(safe-area-inset-left))', bottom: 'calc(78px + env(safe-area-inset-bottom))', zIndex: 1050, width: 52, height: 52, boxShadow: 5, '&:active': { transform: 'scale(.96)' } }}
+      ><AddRoundedIcon /></Fab>
+      <Menu anchorEl={createMenuAnchor} open={Boolean(createMenuAnchor)} onClose={() => setCreateMenuAnchor(null)}>
+        <MenuItem onClick={() => openCreateFlow(false)}><ArticleOutlinedIcon fontSize="small" sx={{ mr: 1.25 }} />Create post</MenuItem>
+        <MenuItem onClick={() => openCreateFlow(true)}><MovieCreationRoundedIcon fontSize="small" sx={{ mr: 1.25 }} />Create Reel</MenuItem>
+      </Menu>
       <Box
         sx={{
           display: 'grid',
@@ -126,7 +180,7 @@ const HomePage = () => {
           {posts.map((post) => (
             <PostCard
               key={post._id}
-              post={post}
+              post={{ ...post, connectionStatus: feedConnectionStatus(post, resolvedViewer) }}
               onPostDeleted={(postId) => setPosts((prev) => prev.filter((item) => item._id !== postId))}
               onPostUpdated={(updatedPost) => setPosts((prev) => prev.map((item) => item._id === updatedPost._id ? updatedPost : item))}
             />

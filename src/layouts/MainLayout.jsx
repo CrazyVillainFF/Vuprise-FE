@@ -18,6 +18,7 @@ const MainLayout = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isMobileMessages = location.pathname === '/messages' && isMobile;
+  const isReelsPage = location.pathname === '/reels';
   const { incomingToast, dismissIncomingToast } = useNotifications();
 
   useEffect(() => {
@@ -40,31 +41,31 @@ const MainLayout = () => {
 
   return (
     <Box sx={{
-      minHeight: isMobileMessages ? 0 : '100dvh',
-      height: isMobileMessages ? '100dvh' : undefined,
-      overflow: isMobileMessages ? 'hidden' : undefined,
+      minHeight: isMobileMessages || isReelsPage ? 0 : '100dvh',
+      height: isMobileMessages || isReelsPage ? '100dvh' : undefined,
+      overflow: isMobileMessages || isReelsPage ? 'hidden' : undefined,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
       isolation: 'isolate',
       zIndex: 1,
     }}>
-      <SiteBackdrop />
-      <Navbar />
+      {!isReelsPage && <SiteBackdrop />}
+      {!isReelsPage && <Navbar />}
       <Box
         component="main"
         sx={{
           flex: 1,
-          minHeight: isMobileMessages ? 0 : undefined,
-          display: isMobileMessages ? 'flex' : undefined,
-          flexDirection: isMobileMessages ? 'column' : undefined,
-          overflow: isMobileMessages ? 'hidden' : undefined,
+          minHeight: isMobileMessages || isReelsPage ? 0 : undefined,
+          display: isMobileMessages || isReelsPage ? 'flex' : undefined,
+          flexDirection: isMobileMessages || isReelsPage ? 'column' : undefined,
+          overflow: isMobileMessages || isReelsPage ? 'hidden' : undefined,
           width: '100%',
           minWidth: 0,
           position: 'relative',
           zIndex: 1,
-          py: isMobileMessages ? 1.5 : { xs: 2.5, md: 4 },
-          pb: isMobileMessages ? 'calc(62px + env(safe-area-inset-bottom))' : { xs: 'calc(62px + env(safe-area-inset-bottom) + 24px)', lg: 5 },
+          py: isReelsPage ? 0 : isMobileMessages ? 1.5 : { xs: 2.5, md: 4 },
+          pb: isReelsPage ? 0 : isMobileMessages ? 'calc(62px + env(safe-area-inset-bottom))' : { xs: 'calc(62px + env(safe-area-inset-bottom) + 24px)', lg: 5 },
         }}
       >
         <Outlet />
@@ -135,7 +136,7 @@ const MainLayout = () => {
           </Paper>
         )}
       </Box>
-      <MobileBottomNav />
+      <MobileBottomNav isReelsPage={isReelsPage} />
       <WelcomeMoment message={welcomeMessage} />
       <LocationOnboardingDialog />
     </Box>

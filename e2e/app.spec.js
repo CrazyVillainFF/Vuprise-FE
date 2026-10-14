@@ -73,7 +73,7 @@ test('registration reveals both passwords and switches account-specific fields',
 });
 
 test('protected deep links send visitors to sign-in and unknown routes show a 404', async ({ page }) => {
-  for (const route of ['/home', '/messages', '/people', '/notifications', '/settings']) {
+  for (const route of ['/home', '/reels', '/messages', '/people', '/notifications', '/settings']) {
     await page.goto(route);
     await expect(page).toHaveURL(/\/signin$/);
   }

@@ -19,7 +19,10 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
-  Alert
+  Alert,
+  Menu,
+  MenuItem,
+  ListItemIcon
 } from '@mui/material';
 import { getBrandedHeadline } from '../utils/brandCopy';
 import PulseHeart from './reactbits/PulseHeart';
@@ -29,12 +32,17 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import ThumbUpAltOutlinedIcon from '@mui/icons-material/ThumbUpAltOutlined';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
+import FlagOutlinedIcon from '@mui/icons-material/FlagOutlined';
 import EmojiPickerControl from './EmojiPickerControl';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { postAPI, commentAPI } from '../services/api';
+import ConnectionButton from './ConnectionButton';
 import { formatTimeAgo } from '../utils/formatters';
 import ReportDialog from './ReportDialog';
 import VerifiedAccountBadge from './VerifiedAccountBadge';
@@ -55,6 +63,9 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [savingComment, setSavingComment] = useState(false);
+  const [commentMenuAnchor, setCommentMenuAnchor] = useState(null);
+  const [menuComment, setMenuComment] = useState(null);
+  const [reportComment, setReportComment] = useState(null);
 
   // Edit post state
   const [isEditing, setIsEditing] = useState(false);
@@ -74,6 +85,8 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
 
   const author = post.author || {};
   const isAuthor = currentUser && currentUser._id === (typeof author === 'string' ? author : author._id);
+  const authorId = typeof author === 'string' ? author : author._id;
+  const connectionStatus = post.connectionStatus || author.connectionStatus || (isAuthor ? 'self' : 'none');
 
   const handleLikeToggle = async (nextLiked, nextCount) => {
     if (!isAuthenticated) {
@@ -183,6 +196,43 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
     }
   };
 
+  const updateCommentInList = (commentId, changes) => {
+    setComments((existing) => existing.map((comment) => comment._id === commentId ? { ...comment, ...changes } : comment));
+  };
+
+  const handleCommentLike = async (comment) => {
+    if (!isAuthenticated) return navigate('/signin');
+    const wasLiked = Boolean(comment.isLiked);
+    const wasCount = Number(comment.likeCount || 0);
+    updateCommentInList(comment._id, { isLiked: !wasLiked, likeCount: Math.max(0, wasCount + (wasLiked ? -1 : 1)) });
+    try {
+      const response = await commentAPI.toggleLike(comment._id);
+      if (response.data?.success) updateCommentInList(comment._id, { isLiked: response.data.liked, likeCount: response.data.likeCount });
+    } catch (error) {
+      updateCommentInList(comment._id, { isLiked: wasLiked, likeCount: wasCount });
+      setToastSeverity('error');
+      setToastMessage(error.message || 'Could not update the comment like.');
+    }
+  };
+
+  const handleCommentPin = async () => {
+    if (!menuComment) return;
+    try {
+      const response = await commentAPI.togglePin(menuComment._id);
+      if (response.data?.success) {
+        setComments((existing) => existing.map((comment) => ({ ...comment, pinned: comment._id === menuComment._id ? response.data.pinned : response.data.pinned ? false : comment.pinned })));
+        setToastSeverity('success');
+        setToastMessage(response.data.pinned ? 'Comment pinned.' : 'Comment unpinned.');
+      }
+    } catch (error) {
+      setToastSeverity('error');
+      setToastMessage(error.message || 'Could not update the pinned comment.');
+    } finally {
+      setCommentMenuAnchor(null);
+      setMenuComment(null);
+    }
+  };
+
   const handleSaveEdit = async () => {
     try {
       setSavingEdit(true);
@@ -276,17 +326,30 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             ) : null
           }
           title={
-            <Typography
-              variant="subtitle1"
-              fontWeight={700}
-              sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-              onClick={() => navigate(`/profile/${author._id}`)}
-            >
-              <Stack component="span" direction="row" alignItems="center" gap={0.5} sx={{ display: 'inline-flex', verticalAlign: 'middle' }}>
-                <span>{author.name || 'Vuprise member'}</span>
-                {isVerifiedAccount(author) && <VerifiedAccountBadge color={author.verificationBadgeColor} size={17} />}
-              </Stack>
-            </Typography>
+            <Stack direction="row" spacing={0.75} alignItems="center" useFlexGap flexWrap="wrap">
+              <Typography
+                variant="subtitle1"
+                fontWeight={700}
+                sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                onClick={() => navigate(`/profile/${authorId}`)}
+              >
+                <Stack component="span" direction="row" alignItems="center" gap={0.5} sx={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                  <span>{author.name || 'Vuprise member'}</span>
+                  {isVerifiedAccount(author) && <VerifiedAccountBadge color={author.verificationBadgeColor} size={17} />}
+                </Stack>
+              </Typography>
+              {!isAuthor && authorId && (
+                <ConnectionButton
+                  key={`${authorId}-${connectionStatus}`}
+                  userId={authorId}
+                  userName={author.name}
+                  initialStatus={connectionStatus}
+                  size="small"
+                  connectSx={{ minHeight: 28, py: 0.25, px: 1.1, borderRadius: 4, bgcolor: '#1677ff', '&:hover': { bgcolor: '#0d65dc' } }}
+                  connectedSx={{ minWidth: 104, minHeight: 28, py: 0.25, px: 1.1, borderRadius: 4, color: '#1677ff', borderColor: '#1677ff' }}
+                />
+              )}
+            </Stack>
           }
           subheader={
             <Stack spacing={0.25}>
@@ -410,8 +473,39 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
           )}
 
           {post.mediaType === 'video' && post.videoUrl && (
-            <Box sx={{ mt: 2, borderRadius: 2.5, overflow: 'hidden', bgcolor: 'background.default', border: (theme) => `1px solid ${theme.palette.divider}` }}>
-              <Box component="video" src={post.videoUrl} poster={post.videoThumbnail || undefined} controls playsInline preload="metadata" sx={{ display: 'block', width: '100%', height: post.videoPresentation === 'reel' ? 'min(70vh, 520px)' : 'auto', maxHeight: 520, aspectRatio: post.videoPresentation === 'reel' ? '9 / 16' : undefined, objectFit: post.videoPresentation === 'reel' && post.videoCropMode !== 'fit' ? 'cover' : 'contain', bgcolor: 'common.black' }} />
+            <Box
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${post.videoPresentation === 'reel' ? 'Reel' : 'video'} in Reels`}
+              onClick={() => navigate(`/reels?videoId=${encodeURIComponent(post._id)}`, { state: { homeScrollY: window.scrollY } })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  navigate(`/reels?videoId=${encodeURIComponent(post._id)}`, { state: { homeScrollY: window.scrollY } });
+                }
+              }}
+              sx={{
+                mt: 2,
+                position: 'relative',
+                display: 'grid',
+                placeItems: 'center',
+                width: post.videoPresentation === 'reel' ? 'min(100%, 292px)' : '100%',
+                maxHeight: 520,
+                aspectRatio: post.videoPresentation === 'reel' ? '9 / 16' : '16 / 9',
+                justifySelf: post.videoPresentation === 'reel' ? 'center' : 'stretch',
+                borderRadius: 2.5,
+                overflow: 'hidden',
+                bgcolor: 'common.black',
+                cursor: 'pointer',
+                '&:focus-visible': { outline: '3px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+                '&:hover .home-video-play': { transform: 'scale(1.06)' },
+              }}
+            >
+              <Box component="video" src={post.videoUrl} poster={post.videoThumbnail || undefined} muted playsInline preload="metadata" aria-hidden="true" sx={{ display: 'block', width: '100%', height: '100%', objectFit: post.videoCropMode === 'fit' ? 'contain' : 'cover', bgcolor: 'common.black' }} />
+              <Box aria-hidden="true" className="home-video-play" sx={{ position: 'absolute', display: 'grid', placeItems: 'center', width: 58, height: 58, color: '#fff', bgcolor: 'rgba(0,0,0,.48)', border: '1px solid rgba(255,255,255,.42)', borderRadius: '50%', backdropFilter: 'blur(8px)', transition: 'transform .18s ease' }}>
+                <PlayArrowRoundedIcon sx={{ fontSize: 36, ml: .25 }} />
+              </Box>
+              {post.videoPresentation === 'reel' && <Typography component="span" variant="caption" sx={{ position: 'absolute', right: 12, top: 12, px: 1, py: .35, borderRadius: 10, color: '#fff', bgcolor: 'rgba(0,0,0,.5)', fontWeight: 700 }}>Reel</Typography>}
             </Box>
           )}
         </CardContent>
@@ -529,10 +623,6 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
               <Stack spacing={1.5}>
                 {comments.map((comment) => {
                   const commentAuthor = comment.author || {};
-                  const isCommentOwner =
-                    currentUser &&
-                    (currentUser._id === commentAuthor._id || currentUser._id === author._id);
-                  const isCommentAuthor = currentUser && currentUser._id === commentAuthor._id;
                   const isEditingThisComment = editingCommentId === comment._id;
 
                   return (
@@ -568,28 +658,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
                             <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
                               {formatTimeAgo(comment.createdAt)}
                             </Typography>
-                            {isCommentAuthor && !isEditingThisComment && (
-                              <IconButton
-                                size="small"
-                                aria-label="Edit comment"
-                                title="Edit comment"
-                                onClick={() => startEditingComment(comment)}
-                                sx={{ p: 0.25, color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
-                              >
-                                <EditOutlinedIcon sx={{ fontSize: 14 }} />
-                              </IconButton>
-                            )}
-                            {isCommentOwner && !isEditingThisComment && (
-                              <IconButton
-                                size="small"
-                                aria-label="Delete comment"
-                                title="Delete comment"
-                                onClick={() => handleDeleteComment(comment._id)}
-                                sx={{ p: 0.25, color: 'error.main', '&:hover': { color: 'error.dark' } }}
-                              >
-                                <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
-                              </IconButton>
-                            )}
+                            {!isEditingThisComment && <IconButton size="small" aria-label="More comment options" onClick={(event) => { setCommentMenuAnchor(event.currentTarget); setMenuComment(comment); }} sx={{ p: 0.25, color: 'text.secondary' }}><MoreVertRoundedIcon sx={{ fontSize: 17 }} /></IconButton>}
                           </Stack>
                         </Stack>
                         {isEditingThisComment ? (
@@ -616,6 +685,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
                             {comment.content}
                           </Typography>
                         )}
+                        {!isEditingThisComment && <Stack direction="row" spacing={0.25} alignItems="center" sx={{ mt: 0.8 }}><Button size="small" startIcon={<ThumbUpAltOutlinedIcon sx={{ fontSize: 14 }} />} onClick={() => handleCommentLike(comment)} sx={{ minWidth: 0, px: 0.5, fontSize: '0.7rem', color: comment.isLiked ? 'primary.main' : 'text.secondary' }}>{comment.likeCount ? `${comment.likeCount} ${comment.likeCount === 1 ? 'like' : 'likes'}` : 'Like'}</Button>{comment.pinned && <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700 }}>Pinned</Typography>}</Stack>}
                       </Box>
                     </Stack>
                   );
@@ -629,6 +699,13 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
           </Box>
         )}
       </Card>
+
+      <Menu anchorEl={commentMenuAnchor} open={Boolean(commentMenuAnchor)} onClose={() => { setCommentMenuAnchor(null); setMenuComment(null); }}>
+        {menuComment && currentUser?._id === author._id && <MenuItem onClick={handleCommentPin}><ListItemIcon><PushPinOutlinedIcon fontSize="small" /></ListItemIcon>{menuComment.pinned ? 'Unpin comment' : 'Pin comment'}</MenuItem>}
+        {menuComment && currentUser?._id === (menuComment.author?._id || menuComment.author) && <MenuItem onClick={() => { startEditingComment(menuComment); setCommentMenuAnchor(null); setMenuComment(null); }}><ListItemIcon><EditOutlinedIcon fontSize="small" /></ListItemIcon>Edit comment</MenuItem>}
+        {menuComment && (currentUser?._id === author._id || currentUser?._id === (menuComment.author?._id || menuComment.author)) && <MenuItem onClick={() => { handleDeleteComment(menuComment._id); setCommentMenuAnchor(null); setMenuComment(null); }} sx={{ color: 'error.main' }}><ListItemIcon><DeleteOutlineRoundedIcon fontSize="small" color="error" /></ListItemIcon>Delete comment</MenuItem>}
+        {menuComment && currentUser?._id !== (menuComment.author?._id || menuComment.author) && <MenuItem onClick={() => { setReportComment(menuComment); setCommentMenuAnchor(null); setMenuComment(null); }} sx={{ color: 'warning.dark' }}><ListItemIcon><FlagOutlinedIcon fontSize="small" color="warning" /></ListItemIcon>Report comment</MenuItem>}
+      </Menu>
 
       {/* Delete Confirmation Dialog */}
       <Dialog
@@ -689,6 +766,13 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
         reportedPost={post._id}
         subject="Reported post"
         onSubmitted={() => { setToastSeverity('success'); setToastMessage('Report submitted for review.'); }}
+      />
+      <ReportDialog
+        open={Boolean(reportComment)}
+        onClose={() => setReportComment(null)}
+        reportedComment={reportComment?._id}
+        subject="Comment report"
+        onSubmitted={() => setToastMessage('Comment report submitted for review.')}
       />
     </>
   );

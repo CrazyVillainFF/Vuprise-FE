@@ -19,7 +19,8 @@ import {
   DialogContent,
   DialogActions,
   Menu,
-  MenuItem
+  MenuItem,
+  CircularProgress
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
@@ -39,7 +40,7 @@ import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../theme/ThemeContext';
-import { userAPI, postAPI } from '../services/api';
+import { userAPI, postAPI, connectionAPI } from '../services/api';
 import ConnectionButton from '../components/ConnectionButton';
 import PostCard from '../components/PostCard';
 import ImageUploadModal from '../components/ImageUploadModal';
@@ -80,6 +81,10 @@ const ProfilePage = () => {
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [blockActionLoading, setBlockActionLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [relationshipDialog, setRelationshipDialog] = useState('');
+  const [relationshipUsers, setRelationshipUsers] = useState([]);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [relationshipError, setRelationshipError] = useState('');
 
   const profileUserId = id || (currentUser ? currentUser._id : null);
   const isOwnProfile = currentUser && profileUserId === currentUser._id;
@@ -103,7 +108,28 @@ const ProfilePage = () => {
         setError(null);
         const res = await userAPI.getUserById(profileUserId);
         if (res.data.success) {
-          setProfile(res.data.user);
+          const nextProfile = res.data.user;
+          // Keep the already-deployed API usable while the new relationship
+          // summary endpoint rolls out. The owner-only connections endpoint is
+          // authoritative for the current account; legacy profile data is only
+          // a display fallback for another member's public profile.
+          if (isOwnProfile) {
+            try {
+              const relationshipResponse = await connectionAPI.getConnections();
+              const relationshipData = relationshipResponse.data || {};
+              const mutualConnections = relationshipData.connections || [];
+              const incomingRequests = relationshipData.pendingIncoming || [];
+              nextProfile.connectsCount = mutualConnections.length + incomingRequests.length;
+              nextProfile.connectionsCount = mutualConnections.length;
+            } catch {
+              nextProfile.connectsCount = nextProfile.connectsCount ?? 0;
+              nextProfile.connectionsCount = nextProfile.connectionsCount ?? nextProfile.connections?.length ?? 0;
+            }
+          } else {
+            nextProfile.connectsCount = nextProfile.connectsCount ?? nextProfile.connections?.length ?? 0;
+            nextProfile.connectionsCount = nextProfile.connectionsCount ?? nextProfile.connections?.length ?? 0;
+          }
+          setProfile(nextProfile);
         }
       } catch (err) {
         console.error('[Profile Fetch Error]', err.message);
@@ -131,7 +157,7 @@ const ProfilePage = () => {
 
     fetchProfile();
     fetchUserPosts();
-  }, [profileUserId]);
+  }, [profileUserId, isOwnProfile]);
 
   const handleAvatarUpload = async (file) => {
     const formData = new FormData();
@@ -180,6 +206,61 @@ const ProfilePage = () => {
         setToastSeverity('error');
         setToastMessage(error.message || 'Could not share this profile.');
       }
+    }
+  };
+
+  const openRelationshipList = async (kind) => {
+    if (!profile || (profile.privateAccount && !isOwnProfile)) return;
+    setRelationshipDialog(kind);
+    setRelationshipLoading(true);
+    setRelationshipError('');
+    try {
+      const response = await userAPI.getRelationshipList(profile._id, kind);
+      setRelationshipUsers(response.data.users || []);
+    } catch (requestError) {
+      if (requestError.response?.status === 404 && isOwnProfile) {
+        try {
+          const response = await connectionAPI.getConnections();
+          const connectionData = response.data || {};
+          const mutualConnections = connectionData.connections || [];
+          const incomingRequests = (connectionData.pendingIncoming || []).map((request) => ({
+            ...(request.requester || {}),
+            connectionId: request._id,
+            relationshipStatus: 'pending'
+          }));
+          const fallbackUsers = kind === 'connects'
+            ? [...incomingRequests, ...mutualConnections]
+            : mutualConnections;
+          setRelationshipUsers(fallbackUsers);
+        } catch (fallbackError) {
+          setRelationshipError(fallbackError.message || 'Could not load this relationship list.');
+          setRelationshipUsers([]);
+        }
+      } else if (requestError.response?.status === 404 && Array.isArray(profile.connections)) {
+        // Older servers expose the legacy public connection array. It cannot
+        // reveal incoming private requests, but it is still a useful, safe
+        // fallback for both public counters instead of surfacing a raw 404.
+        setRelationshipUsers(profile.connections);
+      } else if (requestError.response?.status === 404) {
+        setRelationshipError('The relationship list is being updated on Vuprise. Refresh after the server update completes.');
+        setRelationshipUsers([]);
+      } else {
+        setRelationshipError(requestError.message || 'Could not load this relationship list.');
+        setRelationshipUsers([]);
+      }
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  const handleRelationshipStatusChange = (memberId, status) => {
+    if (relationshipDialog === 'connects' && status === 'connected') {
+      setRelationshipUsers((current) => current.filter((member) => String(member._id) !== String(memberId)));
+      setProfile((current) => current ? {
+        ...current,
+        connectsCount: Math.max(0, (current.connectsCount || 0) - 1),
+        connectionsCount: (current.connectionsCount || 0) + 1
+      } : current);
     }
   };
 
@@ -254,7 +335,7 @@ const ProfilePage = () => {
         {/* Cover Banner */}
         <Box
           sx={{
-            height: { xs: 140, sm: 220, md: 260 },
+            height: { xs: 124, sm: 158, md: 184 },
             backgroundImage: profile.coverImage
               ? `url(${profile.coverImage})`
               : 'linear-gradient(135deg, rgba(0,0,0,.88) 0%, rgba(0,0,0,.24) 100%)',
@@ -326,7 +407,7 @@ const ProfilePage = () => {
             sx={{
               flexWrap: 'wrap',
               position: { sm: 'absolute' },
-              top: { sm: 20 },
+              top: { sm: 16 },
               right: { sm: 32 },
               mt: { xs: 2, sm: 0 },
             }}
@@ -357,7 +438,13 @@ const ProfilePage = () => {
                   userName={profile.name}
                   initialStatus={profile.connectionStatus}
                   connectionId={profile.connectionId}
+                  onStatusChange={(status) => setProfile((current) => current ? ({ ...current, connectionStatus: status }) : current)}
                 />
+                {isAuthenticated && (
+                  <Button variant="outlined" color="inherit" onClick={() => navigate(`/messages?contact=${profile._id}`)}>
+                    Message
+                  </Button>
+                )}
                 {isAuthenticated && <IconButton
                   aria-label={`More actions for ${profile.name}`}
                   aria-expanded={Boolean(accountMenuAnchor)}
@@ -426,9 +513,17 @@ const ProfilePage = () => {
             </Stack>
 
             {/* Connection Counters */}
-            <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ mt: 1.5 }}>
-              {profile.connections ? profile.connections.length : 0} {profile.connections?.length === 1 ? 'connection' : 'connections'} • {profile.postCount ?? posts.length} {(profile.postCount ?? posts.length) === 1 ? 'contribution' : 'contributions'}
-            </Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.25, height: 20 }}>
+              <Button size="small" color="inherit" onClick={() => openRelationshipList('connects')} disabled={profile.privateAccount && !isOwnProfile} sx={{ fontSize: '0.875rem', fontWeight: 700, px: 0, py: 0, minWidth: 0, minHeight: 20, height: 20, lineHeight: '20px', textTransform: 'none' }}>
+                {profile.connectsCount ?? 0} Connects
+              </Button>
+              <Typography component="span" color="text.secondary" sx={{ fontSize: '0.875rem', lineHeight: '20px' }}>•</Typography>
+              <Button size="small" color="inherit" onClick={() => openRelationshipList('connections')} disabled={profile.privateAccount && !isOwnProfile} sx={{ fontSize: '0.875rem', fontWeight: 700, px: 0, py: 0, minWidth: 0, minHeight: 20, height: 20, lineHeight: '20px', textTransform: 'none' }}>
+                {profile.connectionsCount ?? 0} Connections
+              </Button>
+              <Typography component="span" color="text.secondary" sx={{ fontSize: '0.875rem', lineHeight: '20px' }}>•</Typography>
+              <Typography component="span" fontWeight={700} sx={{ fontSize: '0.875rem', lineHeight: '20px' }}>{profile.postCount ?? posts.length} {(profile.postCount ?? posts.length) === 1 ? 'contribution' : 'contributions'}</Typography>
+            </Stack>
           </Box>
         </Box>
       </Card>
@@ -500,7 +595,7 @@ const ProfilePage = () => {
                 {posts.map((post) => (
                   <PostCard
                     key={post._id}
-                    post={post}
+                    post={{ ...post, connectionStatus: profile.connectionStatus }}
                     onPostDeleted={(pId) => setPosts((prev) => prev.filter((p) => p._id !== pId))}
                   />
                 ))}
@@ -572,6 +667,27 @@ const ProfilePage = () => {
           )}
         </Grid>
       </Grid>
+
+      <Dialog open={Boolean(relationshipDialog)} onClose={() => setRelationshipDialog('')} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 800 }}>{relationshipDialog === 'connects' ? 'Connects' : 'Connections'}</DialogTitle>
+        <DialogContent dividers>
+          {relationshipLoading && <Stack alignItems="center" sx={{ py: 4 }}><CircularProgress size={28} /></Stack>}
+          {relationshipError && <Alert severity="error">{relationshipError}</Alert>}
+          {!relationshipLoading && !relationshipError && !relationshipUsers.length && <Typography color="text.secondary">No members to show.</Typography>}
+          <Stack spacing={1.25}>
+            {relationshipUsers.map((member) => <Stack key={member._id} direction="row" spacing={1.25} alignItems="center" sx={{ py: 0.5 }}>
+              <Avatar src={member.profilePicture}>{member.name?.[0] || 'V'}</Avatar>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Stack direction="row" spacing={0.75} alignItems="center"><Typography fontWeight={700} noWrap>{member.name}</Typography>{isVerifiedAccount(member) && <VerifiedAccountBadge color={member.verificationBadgeColor} size={16} />}</Stack>
+                <Typography variant="body2" color="text.secondary" noWrap>{getBrandedHeadline(member.headline)}</Typography>
+              </Box>
+              <Button size="small" color="inherit" onClick={() => { setRelationshipDialog(''); navigate(`/profile/${member._id}`); }}>View</Button>
+              {isOwnProfile && relationshipDialog === 'connects' && <ConnectionButton userId={member._id} userName={member.name} initialStatus="pending_received" connectionId={member.connectionId} size="small" onStatusChange={(status) => handleRelationshipStatusChange(member._id, status)} />}
+            </Stack>)}
+          </Stack>
+        </DialogContent>
+        <DialogActions><Button color="inherit" onClick={() => setRelationshipDialog('')}>Close</Button></DialogActions>
+      </Dialog>
 
       {/* Upload Image Modals */}
       <ImageUploadModal

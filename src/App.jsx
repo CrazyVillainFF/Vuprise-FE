@@ -31,6 +31,7 @@ import SatisfiedGamesPage from './pages/SatisfiedGamesPage';
 import SatisfiedGamesPrompt from './components/SatisfiedGamesPrompt';
 import AdminPage from './pages/AdminPage';
 import SupportRequestPage from './pages/SupportRequestPage';
+import ReelsPage from './pages/ReelsPage';
 import ModerationNoticeLayer from './components/ModerationNoticeLayer';
 import StatusMark from './components/reactbits/StatusMark';
 
@@ -117,6 +118,7 @@ function App() {
                 }
               >
                 <Route path="/home" element={<HomePage />} />
+                <Route path="/reels" element={<ReelsPage />} />
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/groups" element={<Navigate to="/messages" replace />} />
                 <Route path="/groups/:id/messages" element={<GroupConversationRedirect />} />

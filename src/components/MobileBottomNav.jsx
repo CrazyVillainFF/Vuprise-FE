@@ -1,24 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { Paper, BottomNavigation, BottomNavigationAction, Badge, Box } from '@mui/material';
+import { Paper, BottomNavigation, BottomNavigationAction, Badge } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import SlowMotionVideoRoundedIcon from '@mui/icons-material/SlowMotionVideoRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import CreatePostCard from './CreatePostCard';
 
-const MobileBottomNav = () => {
+const MobileBottomNav = ({ isReelsPage = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { unreadCount, unreadMessageCount } = useNotifications();
   const { user, isAuthenticated } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createReelOnOpen, setCreateReelOnOpen] = useState(false);
 
   useEffect(() => {
-    const openComposer = () => setCreateOpen(true);
+    const openComposer = (event) => {
+      setCreateReelOnOpen(Boolean(event?.detail?.reelMode));
+      setCreateOpen(true);
+    };
     window.addEventListener('nexora:create-post', openComposer);
     return () => window.removeEventListener('nexora:create-post', openComposer);
   }, []);
@@ -42,10 +46,13 @@ const MobileBottomNav = () => {
           boxSizing: 'border-box',
           overflowX: 'clip',
           zIndex: 1300,
-          display: { xs: 'block', lg: 'none' },
-          borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-          backdropFilter: 'blur(12px)',
-          bgcolor: (theme) => theme.palette.mode === 'light'
+          // The Reel view becomes a desktop viewer at md and up. Keeping the
+          // phone bottom bar there both covers controls and makes the stage
+          // feel incorrectly sized on landscape screens.
+          display: isReelsPage ? { xs: 'block', md: 'none' } : { xs: 'block', lg: 'none' },
+          borderTop: isReelsPage ? '1px solid rgba(255,255,255,.14)' : (theme) => `1px solid ${theme.palette.divider}`,
+          backdropFilter: isReelsPage ? 'blur(10px)' : 'blur(12px)',
+          bgcolor: isReelsPage ? 'rgba(8, 9, 11, 0.42)' : (theme) => theme.palette.mode === 'light'
             ? 'rgba(255, 255, 255, 0.94)'
             : 'rgba(0, 0, 0, 0.94)',
           paddingBottom: 'env(safe-area-inset-bottom)',
@@ -55,20 +62,14 @@ const MobileBottomNav = () => {
         <BottomNavigation
           showLabels
           value={activeValue}
-          onChange={(event, value) => {
-            if (value === 'create') {
-              setCreateOpen(true);
-              return;
-            }
-            navigate(value);
-          }}
+          onChange={(event, value) => navigate(value)}
           sx={{
             height: 62,
             width: '100%',
             bgcolor: 'transparent',
-            '& .MuiBottomNavigationAction-root': { flex: '1 1 20%', minWidth: 0, maxWidth: 'none', px: 0.125, overflow: 'hidden' },
+            '& .MuiBottomNavigationAction-root': { flex: '1 1 20%', minWidth: 0, maxWidth: 'none', px: 0.125, overflow: 'hidden', color: isReelsPage ? 'rgba(255,255,255,.72)' : undefined },
             '& .MuiBottomNavigationAction-label': { fontSize: { xs: '0.6rem', sm: '0.68rem' }, whiteSpace: 'nowrap' },
-            '& .Mui-selected': { color: 'primary.main', fontWeight: 700 },
+            '& .Mui-selected': { color: isReelsPage ? '#fff' : 'primary.main', fontWeight: 700 },
           }}
         >
           <BottomNavigationAction label="Home" value="/home" aria-label="Home" icon={<HomeRoundedIcon />} />
@@ -80,16 +81,7 @@ const MobileBottomNav = () => {
               ? <Badge badgeContent={unreadMessageCount} color="error" max={99}><ChatBubbleOutlineRoundedIcon /></Badge>
               : <ChatBubbleOutlineRoundedIcon />}
           />
-          <BottomNavigationAction
-            label=""
-            value="create"
-            aria-label="Create post"
-            icon={(
-              <Box aria-hidden="true" sx={{ width: 40, height: 40, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'grid', placeItems: 'center', boxShadow: 2 }}>
-                <AddRoundedIcon />
-              </Box>
-            )}
-          />
+          <BottomNavigationAction label="Reels" value="/reels" aria-label="Open Reels" icon={<SlowMotionVideoRoundedIcon />} />
           <BottomNavigationAction
             label="Alerts"
             value="/notifications"
@@ -104,7 +96,11 @@ const MobileBottomNav = () => {
       <CreatePostCard
         showTrigger={false}
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        initialReelMode={createReelOnOpen}
+        onOpenChange={(nextOpen) => {
+          setCreateOpen(nextOpen);
+          if (!nextOpen) setCreateReelOnOpen(false);
+        }}
         onPostCreated={(post) => window.dispatchEvent(new CustomEvent('nexora:post-created', { detail: post }))}
       />
     </>

@@ -34,7 +34,7 @@ import { clampTrimEndToDuration, normalizeTrimRange, readFiniteVideoDuration, up
 
 const POPULAR_TAGS = ['#engineering', '#productdesign', '#ai', '#leadership', '#techtrends'];
 
-const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange }) => {
+const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange, initialReelMode = false }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { startPublishing, updatePublishing, completePublishing, failPublishing } = usePublishing();
@@ -99,6 +99,10 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     if (videoPreview) URL.revokeObjectURL(videoPreview);
   }, [imagePreview, videoPreview]);
+
+  useEffect(() => {
+    if (openModal) setReelMode(Boolean(initialReelMode));
+  }, [openModal, initialReelMode]);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];

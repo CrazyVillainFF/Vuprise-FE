@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supportAPI } from '../services/api';
 import EvidencePhotoPicker from './EvidencePhotoPicker';
 
-export default function ReportDialog({ open, onClose, reportedUser, reportedPost, subject, onSubmitted }) {
+export default function ReportDialog({ open, onClose, reportedUser, reportedPost, reportedComment, subject, onSubmitted }) {
   const { user } = useAuth();
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -29,8 +29,8 @@ export default function ReportDialog({ open, onClose, reportedUser, reportedPost
       const payload = new FormData();
       Object.entries({
         type: 'report', email: user.email, userId: user._id, subject,
-        category: reportedUser ? 'profile' : 'post', message: clean,
-        ...(reportedUser ? { reportedUser } : { reportedPost }),
+        category: reportedComment ? 'comment' : reportedUser ? 'profile' : 'post', message: clean,
+        ...(reportedComment ? { reportedComment } : reportedUser ? { reportedUser } : { reportedPost }),
       }).forEach(([key, value]) => payload.append(key, value));
       evidenceFiles.forEach((file) => payload.append('evidence', file));
       await supportAPI.submit(payload);
@@ -48,7 +48,7 @@ export default function ReportDialog({ open, onClose, reportedUser, reportedPost
   return (
     <Dialog open={open} onClose={close} fullWidth maxWidth="xs" aria-labelledby="report-dialog-title">
       <form onSubmit={submit}>
-        <DialogTitle id="report-dialog-title">Report {reportedUser ? 'profile' : 'post'}</DialogTitle>
+        <DialogTitle id="report-dialog-title">Report {reportedComment ? 'comment' : reportedUser ? 'profile' : 'post'}</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 1.5 }}>
             Moderators will review this report. Please don’t include private information.

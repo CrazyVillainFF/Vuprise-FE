@@ -276,7 +276,7 @@ const NotificationsPage = () => {
                       return (
                         <React.Fragment key={`request-actions-${item._id}`}>
                           <Button size="small" variant="contained" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleConnectionRequest(event, item, requestId, 'accept')} aria-label={`Accept connection request from ${sender.name || 'member'}`}>
-                            {pending ? <CircularProgress size={16} color="inherit" /> : 'Accept'}
+                            {pending ? <CircularProgress size={16} color="inherit" /> : 'Connect back'}
                           </Button>
                           <Button size="small" variant="outlined" color="inherit" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleConnectionRequest(event, item, requestId, 'decline')} aria-label={`Decline connection request from ${sender.name || 'member'}`}>
                             Decline
@@ -284,6 +284,16 @@ const NotificationsPage = () => {
                         </React.Fragment>
                       );
                     })()}
+                    {item.sender?._id && ['connection_request', 'connection_accepted'].includes(item.type) && (
+                      <Button size="small" variant="text" color="inherit" onClick={() => navigate(`/messages?contact=${item.sender._id}`)}>
+                        Message
+                      </Button>
+                    )}
+                    {item.sender?._id && item.type !== 'official_message' && (
+                      <Button size="small" variant="text" color="inherit" onClick={() => navigate(`/profile/${item.sender._id}`)}>
+                        View profile
+                      </Button>
+                    )}
                     {item.type === 'group_invitation' && (() => {
                       const groupId = item.group?._id || item.group;
                       if (!groupId || item.read) return null;

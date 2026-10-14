@@ -7,7 +7,10 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  // Render's free instances can take roughly a minute to wake after sleeping.
+  // Keep the real request alive long enough for that startup instead of
+  // converting a healthy but cold backend into a misleading Network Error.
+  timeout: 90000,
 });
 
 // Request Interceptor: Attach JWT Token
@@ -45,8 +48,10 @@ api.interceptors.response.use(
     }
 
     console.error('[VUPRISE API Error]', error.config?.url, error.response?.status, error.message);
+    const backendWakeUp = error.code === 'ECONNABORTED' && /timeout/i.test(error.message || '');
     const message =
       error.response?.data?.message ||
+      (backendWakeUp ? 'Vuprise is waking its server. Please wait a moment and retry.' : '') ||
       error.message ||
       'An unexpected network error occurred. Please try again.';
 
@@ -98,6 +103,7 @@ export const userAPI = {
   getUsers: (params) => api.get('/users', { params }),
   getSuggested: () => api.get('/users/suggested'),
   getUserById: (id) => api.get(`/users/${id}`),
+  getRelationshipList: (id, kind) => api.get(`/users/${id}/relationships/${kind}`),
   updateProfile: (data) => api.put('/users/profile', data),
   uploadAvatar: (formData) =>
     api.post('/users/avatar', formData, {
@@ -145,6 +151,8 @@ export const commentAPI = {
   getPostComments: (postId) => api.get(`/posts/${postId}/comments`),
   updateComment: (commentId, data) => api.put(`/comments/${commentId}`, data),
   deleteComment: (commentId) => api.delete(`/comments/${commentId}`),
+  toggleLike: (commentId) => api.put(`/comments/${commentId}/like`),
+  togglePin: (commentId) => api.put(`/comments/${commentId}/pin`),
 };
 
 // ================= CONNECTION APIs =================

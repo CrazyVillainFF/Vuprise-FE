@@ -102,6 +102,7 @@ const MessagesPage = () => {
   const legacyDecryptPromisesRef = useRef(new Map());
   const selectedConversationId = useRef(null);
   const officialSelectionHandled = useRef('');
+  const contactSelectionHandled = useRef('');
   const messageRequestId = useRef(0);
   const openRequestId = useRef(0);
   const longPressTimer = useRef(null);
@@ -513,7 +514,7 @@ const MessagesPage = () => {
     setActiveGroup(null);
     groupSelectionHandled.current = '';
     setAttachment(null);
-    if (searchParams.has('group')) setSearchParams({}, { replace: true });
+    if (searchParams.has('group') || searchParams.has('contact')) setSearchParams({}, { replace: true });
     const requestId = ++openRequestId.current;
     const cachedConversation = conversations.find((conversation) => String(conversation.peer?._id) === String(contact._id));
     if (cachedConversation) {
@@ -568,6 +569,20 @@ const MessagesPage = () => {
     officialSelectionHandled.current = requestedId;
     openOfficialConversation(conversation);
   }, [conversations, loading, openOfficialConversation, searchParams]);
+
+  useEffect(() => {
+    const requestedId = searchParams.get('contact');
+    if (!requestedId) { contactSelectionHandled.current = ''; return; }
+    if (loading || contactSelectionHandled.current === requestedId) return;
+    const contact = contacts.find((item) => String(item._id) === String(requestedId));
+    if (!contact) {
+      setError('This member is not currently available for messaging.');
+      contactSelectionHandled.current = requestedId;
+      return;
+    }
+    contactSelectionHandled.current = requestedId;
+    openConversation(contact);
+  }, [contacts, loading, openConversation, searchParams]);
 
   const openGroupConversation = (group) => {
     stopTyping();
@@ -926,7 +941,7 @@ const MessagesPage = () => {
                 <Stack alignItems="center" justifyContent="center" sx={{ px: 3, py: 5, textAlign: 'center' }}>
                   <Typography fontWeight={700}>{contacts.length ? 'No matches' : 'No chats yet'}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {contacts.length || groups.length ? 'Try a different name.' : 'Accepted connections and group chats will appear here.'}
+                    {contacts.length || groups.length ? 'Try a different name.' : 'Your messageable connections and group chats will appear here.'}
                   </Typography>
                 </Stack>
               )}

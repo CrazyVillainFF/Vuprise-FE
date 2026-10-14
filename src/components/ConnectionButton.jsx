@@ -15,6 +15,8 @@ const ConnectionButton = ({
   connectionId,
   size = 'medium',
   onStatusChange,
+  connectSx = {},
+  connectedSx = {},
   sx = {}
 }) => {
   const { isAuthenticated, user: currentUser } = useAuth();
@@ -112,7 +114,7 @@ const ConnectionButton = ({
           disabled={loading}
           startIcon={<CheckRoundedIcon />}
         >
-          Accept
+          Connect back
         </Button>
         <Button
           size={size}
@@ -162,6 +164,7 @@ const ConnectionButton = ({
             minWidth: 110,
             transition: 'all 0.2s',
             borderColor: isHovered ? 'error.main' : 'primary.main',
+            ...connectedSx,
             ...sx
           }}
         >
@@ -198,7 +201,7 @@ const ConnectionButton = ({
   // Default: 'none'
   return (
     <Stack spacing={0.75} sx={{ minWidth: 0 }}>
-      <Button size={size} variant="contained" color="primary" onClick={handleConnect} startIcon={<PersonAddOutlinedIcon />} sx={sx}>
+      <Button size={size} variant="contained" color="primary" onClick={handleConnect} startIcon={<PersonAddOutlinedIcon />} sx={{ ...connectSx, ...sx }}>
         Connect
       </Button>
       {actionError && <Alert severity="error" sx={{ maxWidth: 320 }}>{actionError}</Alert>}
