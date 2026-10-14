@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
+  Alert, Avatar, Box, Button, ButtonBase, Checkbox, Chip, Dialog, DialogActions, DialogContent,
   DialogTitle, Divider, FormControlLabel, MenuItem, Pagination, Paper, Stack, Tab, Tabs, Table, TableBody,
   TableCell, TableHead, TableRow, TextField, Typography
 } from '@mui/material';
@@ -18,26 +18,27 @@ function Stat({ label, value }) {
   return <Paper variant="outlined" sx={{ p: { xs: 1.25, sm: 2 }, minWidth: 0, minHeight: { xs: 76, sm: 88 }, display: 'flex', flexDirection: 'column', justifyContent: 'center', borderColor: 'divider', bgcolor: 'background.paper' }}><Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere', lineHeight: 1.25 }}>{label}</Typography><Typography variant="h5" fontWeight={800} aria-label={`${label}: ${value ?? 'not available'}`}>{value ?? '—'}</Typography></Paper>;
 }
 
-function BroadcastHistory({ messages }) {
+function BroadcastHistory({ messages, onOpenRecipient }) {
   return <Box sx={{ px: { xs: 1.25, sm: 2 }, minWidth: 0, maxWidth: '100%' }}>
     <Stack divider={<Divider/>}>
       {messages.map((item) => {
         const recipients = item.recipients || (item.recipient ? [item.recipient] : []);
-        const names = recipients.slice(0, 6).map((recipient) => recipient?.name || 'Deleted account').join(', ');
-        const remaining = Math.max(0, Number(item.recipientCount || recipients.length) - Math.min(recipients.length, 6));
-        return <Stack key={item._id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'flex-start' }} gap={1.5} sx={{ py: 1.75, minWidth: 0 }}>
-          <Avatar sx={{ width: 40, height: 40, flexShrink: 0, bgcolor: 'common.black', color: 'common.white' }}>V</Avatar>
+        const visibleRecipients = recipients.length ? recipients : Array.from({ length: Math.min(Number(item.recipientCount) || 1, 1) }, () => null);
+        return visibleRecipients.map((recipient, index) => <ButtonBase
+          key={`${item._id}-${recipient?._id || index}`}
+          onClick={() => onOpenRecipient({ ...item, selectedRecipient: recipient })}
+          sx={{ width: '100%', display: 'flex', justifyContent: 'flex-start', textAlign: 'left', gap: 1.5, py: 1.25, px: 1, borderRadius: 1.5, '&:hover': { bgcolor: 'action.hover' } }}
+          aria-label={`Open official message sent to ${recipient?.name || 'recipient'}`}
+        >
+          <Avatar src={recipient?.profilePicture} sx={{ width: 40, height: 40, flexShrink: 0, bgcolor: 'common.black', color: 'common.white' }}>{recipient?.name?.[0] || 'V'}</Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={0.5}>
-              <Typography fontWeight={750}>Vuprise official message</Typography>
+              <Typography fontWeight={750} noWrap>{recipient?.name || 'Recipient unavailable'}</Typography>
               <Typography variant="caption" color="text.secondary">{new Date(item.createdAt).toLocaleString()}</Typography>
             </Stack>
-            <Typography variant="body2" sx={{ mt: .5, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.text || (item.deletedForEveryone ? 'This message was deleted' : item.imageUrl ? 'Photo message' : 'Official message')}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: .75, overflowWrap: 'anywhere' }}>
-              {item.recipientCount || recipients.length} recipient{(item.recipientCount || recipients.length) === 1 ? '' : 's'}{names ? `: ${names}` : ''}{remaining ? ` and ${remaining} more` : ''}
-            </Typography>
+            {recipients.length > 1 && <Typography variant="caption" color="text.secondary">Official Vuprise message</Typography>}
           </Box>
-        </Stack>;
+        </ButtonBase>);
       })}
     </Stack>
   </Box>;
@@ -80,6 +81,7 @@ export default function AdminPage() {
   const [verificationTarget, setVerificationTarget] = useState(null);
   const [verificationColor, setVerificationColor] = useState('blue');
   const [verificationError, setVerificationError] = useState('');
+  const [selectedBroadcast, setSelectedBroadcast] = useState(null);
 
   const loadOverview = useCallback(async () => {
     try { setOverview((await adminAPI.overview()).data.overview); } catch (e) { setError(e.message); }
@@ -229,7 +231,7 @@ export default function AdminPage() {
       {loading ? <Box sx={{ py: 9, textAlign: 'center', color: 'primary.main' }}><StatusMark status="running" label={`Loading ${sections[section].toLowerCase()}…`} size={22}/></Box> : rows.length === 0 ? <Box sx={{ py: 8, textAlign: 'center' }}><Typography variant="h6" fontWeight={750}>{section === 4 ? 'No official messages sent yet' : 'Nothing to review'}</Typography><Typography color="text.secondary">{section === 4 ? 'Messages sent from the Users tab will appear here.' : 'New items will appear here when submitted.'}</Typography></Box> : section === 0 ? <>
         <Box sx={{ display: { xs: 'block', md: 'none' }, px: 1.25, pb: 1.25 }}><Stack spacing={1}>{rows.map((user) => <Paper key={user._id} variant="outlined" sx={{ p: 1.25, minWidth: 0, overflowWrap: 'anywhere' }}><Stack direction="row" gap={1} alignItems="center"><Checkbox size="small" checked={selectAllUsers || selectedUserIds.includes(String(user._id))} disabled={selectAllUsers} onChange={() => toggleUserSelection(String(user._id))} inputProps={{ 'aria-label': `Select ${user.name}` }}/><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0, flex: 1 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} sx={{ ml: 0.5 }}/>}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{user.email}</Typography></Box><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'} sx={{ maxWidth: '45%' }}/></Stack><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>ID · {user._id}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Joined {new Date(user.createdAt).toLocaleDateString()}</Typography><Divider sx={{ my: 0.75 }}/>{renderUserActions(user)}</Paper>)}</Stack></Box>
         <Box sx={{ display: { xs: 'none', md: 'block' }, maxWidth: '100%', overflowX: 'auto', overscrollBehaviorX: 'contain' }}><Table size="small" sx={{ minWidth: 820 }}><TableHead><TableRow><TableCell padding="checkbox"><Checkbox size="small" checked={allVisibleSelected} indeterminate={!selectAllUsers && selectedUserIds.some((id) => rows.some((user) => String(user._id) === id)) && !allVisibleSelected} disabled={selectAllUsers} onChange={toggleVisibleSelection} inputProps={{ 'aria-label': 'Select current page of users' }}/></TableCell><TableCell>User</TableCell><TableCell>User ID</TableCell><TableCell>Status</TableCell><TableCell>Joined</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead><TableBody>{rows.map((user) => <TableRow key={user._id} hover><TableCell padding="checkbox"><Checkbox size="small" checked={selectAllUsers || selectedUserIds.includes(String(user._id))} disabled={selectAllUsers} onChange={() => toggleUserSelection(String(user._id))} inputProps={{ 'aria-label': `Select ${user.name}` }}/></TableCell><TableCell><Stack direction="row" alignItems="center" gap={1.25}><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} sx={{ ml: 0.5 }}/>}</Typography><Typography variant="body2" color="text.secondary">{user.email}</Typography></Box></Stack></TableCell><TableCell><Typography variant="caption">{user._id}</Typography></TableCell><TableCell><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'}/>{user.moderationExpiresAt && <Typography display="block" variant="caption">until {new Date(user.moderationExpiresAt).toLocaleString()}</Typography>}</TableCell><TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell><TableCell align="right">{renderUserActions(user)}</TableCell></TableRow>)}</TableBody></Table></Box>
-      </> : section === 4 ? <BroadcastHistory messages={rows}/> : <Box sx={{ px: { xs: 1.25, sm: 2 }, minWidth: 0, maxWidth: '100%' }}><Stack divider={<Divider/>}>{rows.map((item) => <Stack key={item._id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} gap={1.5} sx={{ py: 1.5, minWidth: 0 }}><Box sx={{ flex: 1, minWidth: 0 }}><Stack direction="row" gap={1} alignItems="center"><Chip size="small" label={item.status.replace('_', ' ')}/><Typography fontWeight={750} sx={{ overflowWrap: 'anywhere' }}>{item.subject}</Typography></Stack><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.email} · {item.type.replaceAll('_', ' ')} · {new Date(item.createdAt).toLocaleString()}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.message}</Typography></Box><Button variant="outlined" onClick={() => openInbox(item)}>Review</Button></Stack>)}</Stack></Box>}
+      </> : section === 4 ? <BroadcastHistory messages={rows} onOpenRecipient={setSelectedBroadcast}/> : <Box sx={{ px: { xs: 1.25, sm: 2 }, minWidth: 0, maxWidth: '100%' }}><Stack divider={<Divider/>}>{rows.map((item) => <Stack key={item._id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} gap={1.5} sx={{ py: 1.5, minWidth: 0 }}><Box sx={{ flex: 1, minWidth: 0 }}><Stack direction="row" gap={1} alignItems="center"><Chip size="small" label={item.status.replace('_', ' ')}/><Typography fontWeight={750} sx={{ overflowWrap: 'anywhere' }}>{item.subject}</Typography></Stack><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.email} · {item.type.replaceAll('_', ' ')} · {new Date(item.createdAt).toLocaleString()}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.message}</Typography></Box><Button variant="outlined" onClick={() => openInbox(item)}>Review</Button></Stack>)}</Stack></Box>}
       {!loading && pages > 1 && <Stack alignItems="center" sx={{ p: 2 }}><Pagination page={page} count={pages} onChange={(_e, value) => setPage(value)} color="primary"/></Stack>}
     </Paper>
 
@@ -244,6 +246,17 @@ export default function AdminPage() {
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={() => setBroadcastOpen(false)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={sendBroadcast} disabled={saving || !broadcastDraft.trim()}>{saving ? 'Sending…' : 'Send official message'}</Button></DialogActions>
+    </Dialog>
+
+    <Dialog open={Boolean(selectedBroadcast)} onClose={() => setSelectedBroadcast(null)} fullWidth maxWidth="sm" sx={adminDialogSx}>
+      <DialogTitle>Official message · {selectedBroadcast?.selectedRecipient?.name || 'Recipient'}</DialogTitle>
+      <DialogContent dividers>
+        {selectedBroadcast && <Stack spacing={1.5}>
+          <Typography variant="caption" color="text.secondary">Sent {new Date(selectedBroadcast.createdAt).toLocaleString()}</Typography>
+          <Paper variant="outlined" sx={{ p: 1.75, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selectedBroadcast.text || 'Official message'}</Paper>
+        </Stack>}
+      </DialogContent>
+      <DialogActions><Button onClick={() => setSelectedBroadcast(null)}>Close</Button></DialogActions>
     </Dialog>
 
     <Dialog open={Boolean(verificationTarget)} onClose={() => !saving && setVerificationTarget(null)} fullWidth maxWidth="xs" sx={adminDialogSx}>

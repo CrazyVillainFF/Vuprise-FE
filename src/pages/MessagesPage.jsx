@@ -817,7 +817,7 @@ const MessagesPage = () => {
                       const officialTitle = 'Vuprise';
                       return <ListItem key={`official-${conversation._id}`} disablePadding><ListItemButton selected={String(active?._id) === String(conversation._id)} onClick={() => openOfficialConversation(conversation)} aria-label="Open official message from Vuprise" sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&.Mui-selected': { bgcolor: 'action.selected' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}>
                         <ListItemAvatar sx={{ minWidth: 62 }}><Avatar src="/vuprise-gold-profile.png" alt={officialTitle} sx={{ width: 50, height: 50 }}>V</Avatar></ListItemAvatar>
-                        <ListItemText primary={<Stack direction="row" alignItems="center" gap={0.5}><Typography component="span" noWrap fontWeight={750}>{officialTitle}</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={truncateChatPreview(snippet)} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}/>
+                        <ListItemText primary={<Stack direction="row" alignItems="center" gap={1}><Typography component="span" noWrap fontWeight={750}>{officialTitle}</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={truncateChatPreview(snippet)} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}/>
                         <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>{item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}{unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}</Stack>
                       </ListItemButton></ListItem>;
                     }
@@ -905,7 +905,7 @@ const MessagesPage = () => {
                       >
                     <ListItemAvatar sx={{ minWidth: 62 }}><Badge overlap="circular" variant="dot" invisible={presenceByUser[contact._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ '& .MuiBadge-badge': { bgcolor: '#22c55e', color: '#22c55e', border: '2px solid', borderColor: 'background.paper' } }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
                         <ListItemText
-                          primary={<Stack component="span" direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
+                          primary={<Stack component="span" direction="row" alignItems="center" gap={1} sx={{ minWidth: 0 }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
                           secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
                             ? <TypingIndicator label="Typing…" compact />
                             : hasMessages && conversation.lastMessage.text ? truncateChatPreview(preview) : preview}
@@ -956,7 +956,7 @@ const MessagesPage = () => {
                   >
                     <Badge overlap="circular" variant="dot" invisible={active.isOfficialBroadcast || presenceByUser[active.peer._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ '& .MuiBadge-badge': { bgcolor: '#22c55e', color: '#22c55e', border: '2px solid', borderColor: 'background.paper' } }}><Avatar src={active.isOfficialBroadcast ? '/vuprise-gold-profile.png' : active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
                     <Box sx={{ minWidth: 0 }}>
-                      <Stack direction="row" alignItems="center" gap={0.5}>
+                      <Stack direction="row" alignItems="center" gap={1}>
                         <Typography variant="subtitle1" fontWeight={700} noWrap>{active.isOfficialBroadcast ? (active.officialViewerIsSender ? `To: ${active.officialRecipient?.name || active.peer.name || 'recipient'}` : 'Vuprise') : active.displayName || active.peer.name}</Typography>
                         {active.isOfficialBroadcast && !active.officialViewerIsSender
                           ? <VerifiedAccountBadge color="gold" size={17}/>

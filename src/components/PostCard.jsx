@@ -411,7 +411,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
 
           {post.mediaType === 'video' && post.videoUrl && (
             <Box sx={{ mt: 2, borderRadius: 2.5, overflow: 'hidden', bgcolor: 'background.default', border: (theme) => `1px solid ${theme.palette.divider}` }}>
-              <Box component="video" src={post.videoUrl} poster={post.videoThumbnail || undefined} controls playsInline preload="metadata" sx={{ display: 'block', width: '100%', maxHeight: 520 }} />
+              <Box component="video" src={post.videoUrl} poster={post.videoThumbnail || undefined} controls playsInline preload="metadata" sx={{ display: 'block', width: '100%', height: post.videoPresentation === 'reel' ? 'min(70vh, 520px)' : 'auto', maxHeight: 520, aspectRatio: post.videoPresentation === 'reel' ? '9 / 16' : undefined, objectFit: post.videoPresentation === 'reel' && post.videoCropMode !== 'fit' ? 'cover' : 'contain', bgcolor: 'common.black' }} />
             </Box>
           )}
         </CardContent>
