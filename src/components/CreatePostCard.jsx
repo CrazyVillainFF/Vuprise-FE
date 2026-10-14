@@ -295,7 +295,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
                   : err.code === 'ERR_NETWORK' || err.message === 'Network Error' ? 'The network disconnected during upload. Your video is still selected; reconnect and retry safely.'
                     : status >= 500 ? 'A storage or server issue interrupted publishing. Your video is still selected; retry safely.'
                 : failureCode === 'video_validation_failed'
-                  ? 'The video storage service could not verify this clip. Your video and caption are still selected; retry to start a fresh upload.'
+                  ? `${message || 'Cloud storage could not verify this clip.'} Your video and caption are still selected; retry to start a fresh upload.`
                   : (message || 'Failed to publish post. Please try again.'));
       // If publishing fails, bring the composer back with its selected content so
       // the user can understand the error and retry without rebuilding the draft.
