@@ -23,10 +23,12 @@ import TagOutlinedIcon from '@mui/icons-material/TagOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
+import MovieCreationRoundedIcon from '@mui/icons-material/MovieCreationRounded';
 import { useAuth } from '../context/AuthContext';
 import { postAPI } from '../services/api';
 import { uploadVideoDirectly } from '../services/cloudinaryVideoUpload';
 import { usePublishing } from '../context/PublishingContext';
+import CreateReelEditor from './CreateReelEditor';
 
 const POPULAR_TAGS = ['#engineering', '#productdesign', '#ai', '#leadership', '#techtrends'];
 
@@ -44,6 +46,9 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   const [videoDuration, setVideoDuration] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
+  const [reelMode, setReelMode] = useState(false);
+  const [reelCropMode, setReelCropMode] = useState('cover');
+  const [reelCoverTime, setReelCoverTime] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [publishStage, setPublishStage] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -51,6 +56,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   const fileInputRef = useRef(null);
   const uploadControllerRef = useRef(null);
   const videoIdempotencyKeyRef = useRef('');
+  const videoUploadSignatureRef = useRef('');
   const submittingRef = useRef(false);
   const retryPublishRef = useRef(null);
 
@@ -62,6 +68,12 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (reelMode && !file.type.startsWith('video/')) {
+      setError('A Reel needs a video file. Choose MP4, WebM, or MOV.');
+      e.target.value = '';
+      return;
+    }
 
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       setError('Choose an image or video file.');
@@ -83,7 +95,9 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       const url = URL.createObjectURL(file);
       setVideoPreview(url); setVideoFile(file);
       videoIdempotencyKeyRef.current = crypto.randomUUID();
+      videoUploadSignatureRef.current = '';
       setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
+      setReelCoverTime(0);
     } else {
       setVideoPreview('');
       setImageFile(file);
@@ -97,8 +111,10 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
     setImagePreview(null);
     setVideoFile(null);
     videoIdempotencyKeyRef.current = '';
+    videoUploadSignatureRef.current = '';
     if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoPreview(''); setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
+    setReelCoverTime(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -139,12 +155,20 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
 
       if (videoFile) {
         setPublishStage('Requesting secure upload…');
+        const requestSignature = JSON.stringify([videoFile.name, videoFile.size, videoFile.lastModified, trimStart, trimEnd, reelMode, reelCropMode, reelCoverTime]);
+        if (!videoIdempotencyKeyRef.current || videoUploadSignatureRef.current !== requestSignature) {
+          videoIdempotencyKeyRef.current = crypto.randomUUID();
+          videoUploadSignatureRef.current = requestSignature;
+        }
         const request = {
           mimeType: videoFile.type,
           fileSize: videoFile.size,
           trimStart,
           trimEnd,
-          idempotencyKey: videoIdempotencyKeyRef.current || crypto.randomUUID(),
+          presentation: reelMode ? 'reel' : 'post',
+          cropMode: reelMode ? reelCropMode : 'cover',
+          coverTime: reelMode ? Math.min(Math.max(reelCoverTime, trimStart), trimEnd) : trimStart,
+          idempotencyKey: videoIdempotencyKeyRef.current,
         };
         videoIdempotencyKeyRef.current = request.idempotencyKey;
         const authorizationResponse = await postAPI.signVideoUpload(request, { signal: uploadControllerRef.current.signal });
@@ -153,6 +177,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           onPostCreated?.(authorization.post);
           completePublishing();
           setContent(''); handleRemoveImage(); setOpenModal(false);
+        setReelMode(false);
           return;
         }
         setPublishStage('Uploading directly to secure video storage…');
@@ -183,6 +208,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           onPostCreated?.(result.data.post);
           completePublishing();
           setContent(''); handleRemoveImage(); setUploadProgress(0); setPublishStage(''); setOpenModal(false);
+          setReelMode(false);
         } else throw new Error(result.data.message || 'The server did not confirm that your post was published.');
         return;
       }
@@ -213,6 +239,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
         setUploadProgress(0);
         setPublishStage('');
         setOpenModal(false);
+        setReelMode(false);
       } else throw new Error(res.data.message || 'The server did not confirm that your post was published.');
     } catch (err) {
       const status = err.response?.status;
@@ -311,16 +338,17 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       {/* Expandable Composer Dialog */}
       <Dialog
         open={openModal}
-        onClose={submitting ? undefined : () => setOpenModal(false)}
+        onClose={submitting ? undefined : () => { setOpenModal(false); setReelMode(false); }}
         maxWidth="sm"
         fullWidth
+        fullScreen={reelMode}
         PaperProps={{
           sx: {
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            borderRadius: { xs: '20px 20px 0 0', sm: 3 },
+            borderRadius: reelMode ? 0 : { xs: '20px 20px 0 0', sm: 3 },
             mx: { xs: 0, sm: 2 }, mb: { xs: 0, sm: 2 },
-            width: { xs: '100%', sm: 'min(560px, calc(100% - 32px))' }, maxWidth: 'none',
-            height: { xs: 'min(88dvh, 780px)', sm: 'auto' }, maxHeight: { xs: 'calc(100dvh - env(safe-area-inset-top, 0px))', sm: 'min(90dvh, 820px)' },
+            width: reelMode ? '100vw' : { xs: '100%', sm: 'min(560px, calc(100% - 32px))' }, maxWidth: reelMode ? '100vw' : 'none',
+            height: reelMode ? '100dvh' : { xs: 'min(88dvh, 780px)', sm: 'auto' }, maxHeight: reelMode ? '100dvh' : { xs: 'calc(100dvh - env(safe-area-inset-top, 0px))', sm: 'min(90dvh, 820px)' },
             p: { xs: 0, sm: .5 },
             border: (theme) => `1px solid ${theme.palette.divider}`,
             boxShadow: '0 24px 80px rgba(0,0,0,.32)',
@@ -328,10 +356,41 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
         }}
         sx={{
           '& .MuiDialog-container': { alignItems: { xs: 'flex-end', sm: 'center' } },
-          '& .MuiBackdrop-root': { bgcolor: 'rgba(4, 10, 18, .66)', backdropFilter: 'blur(5px)' },
+          '& .MuiBackdrop-root': { bgcolor: reelMode ? '#08090b' : 'rgba(4, 10, 18, .66)', backdropFilter: reelMode ? 'none' : 'blur(5px)' },
           '@media (prefers-reduced-motion: reduce)': { '& .MuiPaper-root': { transition: 'none' } },
         }}
       >
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImageSelect}
+          accept={reelMode ? 'video/mp4,video/webm,video/quicktime' : 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime'}
+          style={{ display: 'none' }}
+        />
+        {reelMode ? <CreateReelEditor
+          videoPreview={videoPreview}
+          videoFile={videoFile}
+          videoDuration={videoDuration}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          setTrimStart={setTrimStart}
+          setTrimEnd={setTrimEnd}
+          setInitialTrimEnd={setTrimEnd}
+          coverTime={reelCoverTime}
+          setCoverTime={setReelCoverTime}
+          cropMode={reelCropMode}
+          setCropMode={setReelCropMode}
+          content={content}
+          setContent={setContent}
+          setVideoDuration={setVideoDuration}
+          onReplace={() => { if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } }}
+          onClose={() => { if (!submitting) { setReelMode(false); setOpenModal(false); } }}
+          onPublish={handlePublish}
+          submitting={submitting}
+          uploadProgress={uploadProgress}
+          publishStage={publishStage}
+          error={error}
+        /> : <>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: { xs: 1.25, sm: 1.5 }, px: { xs: 2, sm: 2.25 }, flexShrink: 0 }}>
           <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
             <Avatar src={user?.profilePicture} alt={user?.name} sx={{ width: 38, height: 38, flexShrink: 0 }}>
@@ -356,6 +415,20 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
             </Alert>
           )}
 
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<MovieCreationRoundedIcon/>}
+            onClick={() => {
+              setError(null);
+              setReelMode(true);
+              if (videoFile) { setReelCoverTime(trimStart); return; }
+              window.setTimeout(() => fileInputRef.current?.click(), 100);
+            }}
+            disabled={submitting}
+            sx={{ mb: 1.5, minHeight: 46, borderRadius: 2.5, justifyContent: 'flex-start', px: 1.5 }}
+          >Create a Reel</Button>
+
           <TextField
             autoFocus
             multiline
@@ -374,14 +447,6 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           />
 
           {/* Hidden media input. Previews use object URLs instead of reading video bytes into JS memory. */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageSelect}
-            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
-            style={{ display: 'none' }}
-          />
-
           {/* Image Preview */}
           {imagePreview && (
             <Box sx={{ position: 'relative', mt: 1.75, borderRadius: 2.5, overflow: 'hidden', bgcolor: 'rgba(0,0,0,.16)', display: 'grid', placeItems: 'center', maxHeight: 300 }}>
@@ -488,6 +553,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           </Stack>
         </DialogActions>
         {submitting && publishStage && <Typography variant="caption" color="text.secondary" sx={{ px: 2.5, pb: 1.5, textAlign: 'right' }}>{publishStage}</Typography>}
+        </>}
       </Dialog>
     </>
   );
