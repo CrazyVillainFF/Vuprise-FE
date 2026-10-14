@@ -172,7 +172,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
     }
     const detectedDuration = reelMode ? videoDurationRef.current : videoDurationRef.current || videoDuration;
     const selectedTrimStart = trimStartRef.current;
-    const selectedTrimEnd = trimEndRef.current || trimEnd;
+    const selectedTrimEnd = reelMode ? trimEndRef.current : trimEndRef.current || trimEnd;
     let safeTrimEnd = clampTrimEndToDuration(selectedTrimEnd, detectedDuration);
     if (videoFile && reelMode && (!Number.isFinite(detectedDuration) || detectedDuration <= 0)) {
       setError('The video duration is still loading. Wait for the preview and trim timeline, then publish again. Your video and caption are still selected.');
