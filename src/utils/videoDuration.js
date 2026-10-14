@@ -17,7 +17,21 @@ export function clampTrimEndToDuration(trimEnd, duration, epsilon = VIDEO_DURATI
   const sourceDuration = Number(duration);
   if (!Number.isFinite(end) || !Number.isFinite(sourceDuration) || sourceDuration <= 0) return null;
   if (end <= sourceDuration) return end;
-  return end - sourceDuration <= epsilon ? sourceDuration : null;
+  const precisionSlack = Number.EPSILON * Math.max(1, Math.abs(end), Math.abs(sourceDuration)) * 4;
+  return end - sourceDuration <= epsilon + precisionSlack ? sourceDuration : null;
+}
+
+// Normalize only the range's representational edge. Interior trim choices are
+// kept as selected; invalid starts, reversed ranges, and materially overlong
+// endpoints remain invalid for the server to reject as well.
+export function normalizeTrimRange(trimStart, trimEnd, duration, epsilon = VIDEO_DURATION_EPSILON_SECONDS) {
+  const start = Number(trimStart);
+  const sourceDuration = Number(duration);
+  if (!Number.isFinite(start) || !Number.isFinite(sourceDuration) || sourceDuration <= 0
+    || start < 0 || start >= sourceDuration) return null;
+  const end = clampTrimEndToDuration(trimEnd, sourceDuration, epsilon);
+  if (!Number.isFinite(end) || end <= start) return null;
+  return { start, end };
 }
 
 // Keep a trim endpoint attached to source EOF when browsers refine duration

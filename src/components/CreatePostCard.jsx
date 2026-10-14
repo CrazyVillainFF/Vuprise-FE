@@ -30,7 +30,7 @@ import { postAPI } from '../services/api';
 import { uploadVideoDirectly } from '../services/cloudinaryVideoUpload';
 import { usePublishing } from '../context/PublishingContext';
 import CreateReelEditor from './CreateReelEditor';
-import { clampTrimEndToDuration, readFiniteVideoDuration, updateTrimEndForDuration } from '../utils/videoDuration';
+import { clampTrimEndToDuration, normalizeTrimRange, readFiniteVideoDuration, updateTrimEndForDuration } from '../utils/videoDuration';
 
 const POPULAR_TAGS = ['#engineering', '#productdesign', '#ai', '#leadership', '#techtrends'];
 
@@ -170,10 +170,23 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       setError('Please add some text or media to share.');
       return;
     }
-    const detectedDuration = videoDurationRef.current || videoDuration;
+    const detectedDuration = reelMode ? videoDurationRef.current : videoDurationRef.current || videoDuration;
     const selectedTrimStart = trimStartRef.current;
     const selectedTrimEnd = trimEndRef.current || trimEnd;
-    const safeTrimEnd = clampTrimEndToDuration(selectedTrimEnd, detectedDuration);
+    let safeTrimEnd = clampTrimEndToDuration(selectedTrimEnd, detectedDuration);
+    if (videoFile && reelMode && (!Number.isFinite(detectedDuration) || detectedDuration <= 0)) {
+      setError('The video duration is still loading. Wait for the preview and trim timeline, then publish again. Your video and caption are still selected.');
+      return;
+    }
+    if (videoFile && reelMode) {
+      const normalizedRange = normalizeTrimRange(selectedTrimStart, selectedTrimEnd, detectedDuration);
+      if (!normalizedRange) {
+        setError('The selected trim range is outside the detected video duration. Adjust the trim handles and retry. Your video and caption are still selected.');
+        return;
+      }
+      safeTrimEnd = normalizedRange.end;
+      if (safeTrimEnd !== selectedTrimEnd) setTrimEnd(safeTrimEnd);
+    }
     if (videoFile && (!detectedDuration || safeTrimEnd === null || safeTrimEnd <= selectedTrimStart || safeTrimEnd - selectedTrimStart > 35.0001)) {
       setError(safeTrimEnd === null
         ? 'The trim end is later than the latest detected video duration. Adjust the trim and retry.'

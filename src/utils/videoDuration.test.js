@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clampTrimEndToDuration, readFiniteVideoDuration, updateTrimEndForDuration } from './videoDuration.js';
+import { clampTrimEndToDuration, normalizeTrimRange, readFiniteVideoDuration, updateTrimEndForDuration } from './videoDuration.js';
 
 test('reads finite browser duration and recovers Infinity from a finite seekable range', () => {
   assert.equal(readFiniteVideoDuration({ duration: 18 }), 18);
@@ -17,6 +17,22 @@ test('accepts 18 seconds and clamps only floating-point endpoint drift', () => {
 test('preserves fractional duration and rejects a genuinely out-of-range trim', () => {
   assert.equal(clampTrimEndToDuration(18.375, 18.375), 18.375);
   assert.equal(clampTrimEndToDuration(18.5, 18.375), null);
+});
+
+test('normalizes an 18-second full-length trim without changing its endpoints', () => {
+  assert.deepEqual(normalizeTrimRange(0, 18, 18), { start: 0, end: 18 });
+});
+
+test('normalizes a fractional full-length trim and preserves a shorter custom trim', () => {
+  assert.deepEqual(normalizeTrimRange(0, 18.375, 18.375), { start: 0, end: 18.375 });
+  assert.deepEqual(normalizeTrimRange(2.25, 12.5, 18.375), { start: 2.25, end: 12.5 });
+});
+
+test('clamps only sub-step floating-point endpoint drift and rejects invalid ranges', () => {
+  assert.deepEqual(normalizeTrimRange(0, 18.050000000000001, 18), { start: 0, end: 18 });
+  assert.equal(normalizeTrimRange(0, 18.1, 18), null);
+  assert.equal(normalizeTrimRange(18, 18, 18), null);
+  assert.equal(normalizeTrimRange(4, 3, 18), null);
 });
 
 test('advances a source-end trim when Android refines duration upward', () => {
