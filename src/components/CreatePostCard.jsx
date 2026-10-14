@@ -276,7 +276,15 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       } else throw new Error(res.data.message || 'The server did not confirm that your post was published.');
     } catch (err) {
       const status = err.response?.status;
+      const failureCode = err.response?.data?.code;
       const message = err.response?.data?.message || err.message;
+      // A provider-validation failure marks the old upload session rejected
+      // and removes that invalid asset. A retry must start a fresh idempotent
+      // upload session while keeping the selected file and caption in place.
+      if (['video_validation_failed', 'upload_rejected'].includes(failureCode)) {
+        videoIdempotencyKeyRef.current = crypto.randomUUID();
+        videoUploadSignatureRef.current = '';
+      }
       setError(err.code === 'ERR_CANCELED' || err.name === 'AbortError'
         ? 'Upload canceled. Your selected video is still here; press Publish to retry.'
         : status === 413 ? 'This video is too large. Choose a video under 250MB.'
@@ -286,6 +294,8 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
                 : err.code === 'ECONNABORTED' ? 'The upload timed out. Your video is still selected; retry safely on a steadier connection.'
                   : err.code === 'ERR_NETWORK' || err.message === 'Network Error' ? 'The network disconnected during upload. Your video is still selected; reconnect and retry safely.'
                     : status >= 500 ? 'A storage or server issue interrupted publishing. Your video is still selected; retry safely.'
+                : failureCode === 'video_validation_failed'
+                  ? 'The video storage service could not verify this clip. Your video and caption are still selected; retry to start a fresh upload.'
                   : (message || 'Failed to publish post. Please try again.'));
       // If publishing fails, bring the composer back with its selected content so
       // the user can understand the error and retry without rebuilding the draft.
