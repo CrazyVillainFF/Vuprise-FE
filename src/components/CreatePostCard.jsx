@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Avatar,
@@ -34,6 +35,7 @@ const POPULAR_TAGS = ['#engineering', '#productdesign', '#ai', '#leadership', '#
 
 const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { startPublishing, updatePublishing, completePublishing, failPublishing } = usePublishing();
   const [internalOpen, setInternalOpen] = useState(false);
   const openModal = open ?? internalOpen;
@@ -50,6 +52,9 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   const [reelCropMode, setReelCropMode] = useState('cover');
   const [reelCoverTime, setReelCoverTime] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [progressStage, setProgressStage] = useState('idle');
+  const [publishedPost, setPublishedPost] = useState(null);
   const [publishStage, setPublishStage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -88,6 +93,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
 
     setError(null);
     setPublishStage('');
+    setProgressStage('idle'); setPublishedPost(null); setUploadedBytes(0); setUploadProgress(0);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     if (videoPreview) URL.revokeObjectURL(videoPreview);
     setImageFile(null); setImagePreview(null); setVideoFile(null);
@@ -115,6 +121,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
     if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoPreview(''); setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
     setReelCoverTime(0);
+    setUploadedBytes(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -135,6 +142,10 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
     }
 
     const selectedPreview = videoPreview || imagePreview || '';
+    setPublishedPost(null);
+    setProgressStage('preparing');
+    setUploadProgress(0);
+    setUploadedBytes(0);
     const retryPublish = () => retryPublishRef.current?.();
     retryPublishRef.current = handlePublish;
     startPublishing({
@@ -142,11 +153,14 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       title: videoFile ? 'Preparing trimmed video' : imageFile ? 'Preparing image post' : 'Saving text post',
       previewUrl: selectedPreview,
       isVideo: Boolean(videoFile),
+      isReel: reelMode,
+      bytesUploaded: 0,
+      bytesTotal: videoFile?.size || 0,
       message: 'Checking your caption and selected media.',
     });
     // Publishing continues in the shared status pill, so dismiss the composer as
     // soon as the user starts. Keep the draft mounted in state for safe recovery.
-    setOpenModal(false);
+    if (!reelMode) setOpenModal(false);
     try {
       submittingRef.current = true;
       setSubmitting(true);
@@ -175,40 +189,59 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
         const authorization = authorizationResponse.data;
         if (authorization.alreadyPublished && authorization.post) {
           onPostCreated?.(authorization.post);
-          completePublishing();
-          setContent(''); handleRemoveImage(); setOpenModal(false);
-        setReelMode(false);
+          if (!authorization.post._id || !authorization.post.videoUrl) throw new Error('Vuprise confirmed the upload but did not return a playable published video. Retry safely.');
+          if (reelMode) {
+            setPublishedPost(authorization.post);
+            setProgressStage('published');
+            completePublishing(authorization.post);
+          } else {
+            completePublishing(authorization.post);
+            setContent(''); handleRemoveImage(); setOpenModal(false); setReelMode(false);
+          }
           return;
         }
         setPublishStage('Uploading directly to secure video storage…');
-        updatePublishing({ stage: 'uploading', progress: 0, message: 'Uploading video directly to Cloudinary. Your file does not pass through the API server.' });
+        setProgressStage('uploading');
+        updatePublishing({ stage: 'uploading', progress: 0, bytesUploaded: 0, bytesTotal: videoFile.size, message: 'Uploading video directly to Cloudinary. Your file does not pass through the API server.' });
         try {
-          await uploadVideoDirectly({
+          const uploadedAsset = await uploadVideoDirectly({
             file: videoFile,
             authorization,
             signal: uploadControllerRef.current.signal,
-            onProgress: (progress) => {
+            onProgress: (progress, bytes = {}) => {
               setUploadProgress(progress);
-              updatePublishing({ progress, stage: 'uploading', message: `Secure video upload: ${progress}% complete.` });
+              setUploadedBytes(bytes.loaded || 0);
+              updatePublishing({ progress, stage: 'uploading', bytesUploaded: bytes.loaded || 0, bytesTotal: bytes.total || videoFile.size, message: `Secure video upload: ${progress}% complete.` });
             },
           });
+          if (uploadedAsset?.resource_type !== 'video' || !uploadedAsset?.secure_url || uploadedAsset.public_id !== authorization.publicId) {
+            throw new Error('Cloud storage returned incomplete video details. Your upload is safe to retry; press Retry.');
+          }
         } catch (uploadError) {
           // If a prior attempt finished uploading but its response was lost, let the server
           // verify the already-stored asset. The server never trusts this client-side hint.
           const providerMessage = uploadError.response?.data?.error?.message || '';
           if (uploadError.response?.status !== 409 && !/already exists|already taken/i.test(providerMessage)) throw uploadError;
         }
+        setProgressStage('processing');
+        updatePublishing({ stage: 'processing', progress: null, bytesUploaded: videoFile.size, bytesTotal: videoFile.size, message: 'Upload complete. Vuprise is verifying the stored video.' });
         setPublishStage('Verifying the video and publishing your post…');
+        setProgressStage('publishing');
         updatePublishing({ stage: 'publishing', progress: null, message: 'Cloudinary metadata is being verified and the post is being saved.' });
         const result = await postAPI.completeVideoUpload({
           uploadId: authorization.uploadId,
           content: content.trim(),
         }, { signal: uploadControllerRef.current.signal, timeout: 60000 });
-        if (result.data.success && result.data.post) {
+        if (result.data.success && result.data.post?._id && result.data.post?.videoUrl) {
           onPostCreated?.(result.data.post);
-          completePublishing();
-          setContent(''); handleRemoveImage(); setUploadProgress(0); setPublishStage(''); setOpenModal(false);
-          setReelMode(false);
+          if (reelMode) {
+            setPublishedPost(result.data.post);
+            setProgressStage('published');
+            completePublishing(result.data.post);
+          } else {
+            completePublishing(result.data.post);
+            setContent(''); handleRemoveImage(); setUploadProgress(0); setPublishStage(''); setOpenModal(false); setReelMode(false);
+          }
         } else throw new Error(result.data.message || 'The server did not confirm that your post was published.');
         return;
       }
@@ -250,10 +283,13 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           : status === 415 ? 'This video format is not supported. Choose MP4, WebM, or MOV.'
             : status === 401 ? 'Your session expired. Sign in again before publishing.'
               : status === 429 ? 'Too many upload attempts. Wait a minute, then retry.'
-                : status >= 500 || !status ? 'A network or storage issue interrupted publishing. Your video is still selected; retry safely.'
+                : err.code === 'ECONNABORTED' ? 'The upload timed out. Your video is still selected; retry safely on a steadier connection.'
+                  : err.code === 'ERR_NETWORK' || err.message === 'Network Error' ? 'The network disconnected during upload. Your video is still selected; reconnect and retry safely.'
+                    : status >= 500 ? 'A storage or server issue interrupted publishing. Your video is still selected; retry safely.'
                   : (message || 'Failed to publish post. Please try again.'));
       // If publishing fails, bring the composer back with its selected content so
       // the user can understand the error and retry without rebuilding the draft.
+      setProgressStage(reelMode ? 'failed' : 'idle');
       setOpenModal(true);
       failPublishing(err.response?.data?.message || err.message || 'Publishing failed. Your content is still available to retry.', retryPublish);
     } finally {
@@ -384,10 +420,18 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           setContent={setContent}
           setVideoDuration={setVideoDuration}
           onReplace={() => { if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } }}
-          onClose={() => { if (!submitting) { setReelMode(false); setOpenModal(false); } }}
+          onClose={() => { if (!submitting) { if (progressStage === 'published') { setContent(''); handleRemoveImage(); } setProgressStage('idle'); setPublishedPost(null); setReelMode(false); setOpenModal(false); } }}
+          onCancel={() => uploadControllerRef.current?.abort()}
+          onBackToEdit={() => { setProgressStage('idle'); setError(null); setPublishStage(''); }}
+          onFinish={() => { setContent(''); handleRemoveImage(); setPublishedPost(null); setProgressStage('idle'); setReelMode(false); setOpenModal(false); }}
+          onViewReel={() => { if (publishedPost?._id) { const postId = publishedPost._id; setContent(''); handleRemoveImage(); setProgressStage('idle'); setPublishedPost(null); setReelMode(false); setOpenModal(false); navigate(`/post/${postId}`); } }}
           onPublish={handlePublish}
           submitting={submitting}
           uploadProgress={uploadProgress}
+          uploadedBytes={uploadedBytes}
+          totalBytes={videoFile?.size || 0}
+          progressStage={progressStage}
+          publishedPost={publishedPost}
           publishStage={publishStage}
           error={error}
         /> : <>

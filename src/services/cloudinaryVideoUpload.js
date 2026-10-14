@@ -37,7 +37,7 @@ const sendChunk = async ({ blob, authorization, url, start, end, total, uploadId
         } : undefined,
         onUploadProgress: (event) => {
           const sent = start + Math.min(event.loaded, end - start);
-          onProgress(Math.min(99, Math.round((sent / total) * 100)));
+          onProgress(Math.min(99, Math.round((sent / total) * 100)), { loaded: sent, total });
         },
         timeout: 180_000,
       });
@@ -53,6 +53,10 @@ const sendChunk = async ({ blob, authorization, url, start, end, total, uploadId
 };
 
 export const uploadVideoDirectly = async ({ file, authorization, onProgress = () => {}, signal }) => {
+  if (!file || !Number.isSafeInteger(file.size) || file.size <= 0) throw new Error('The selected video file is empty or unavailable. Select it again and retry.');
+  if (!authorization?.uploadId || !authorization?.cloudName || !authorization?.publicId || !authorization?.signature) {
+    throw new Error('The secure upload authorization is incomplete. Refresh your session and retry.');
+  }
   const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(authorization.cloudName)}/video/upload`;
   const uploadId = authorization.uploadId.replace(/[^a-fA-F0-9]/g, '').slice(0, 32) || crypto.randomUUID().replaceAll('-', '');
   let response;
@@ -70,6 +74,6 @@ export const uploadVideoDirectly = async ({ file, authorization, onProgress = ()
       signal,
     });
   }
-  onProgress(100);
+  onProgress(100, { loaded: file.size, total: file.size });
   return response?.data;
 };

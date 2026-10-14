@@ -16,6 +16,9 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
 import VolumeOffRoundedIcon from '@mui/icons-material/VolumeOffRounded';
 import VolumeUpRoundedIcon from '@mui/icons-material/VolumeUpRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 
 const MAX_REEL_SECONDS = 35;
 const tools = [
@@ -37,7 +40,9 @@ const timeLabel = (seconds) => {
 export default function CreateReelEditor({
   videoPreview, videoFile, videoDuration, trimStart, trimEnd, setTrimStart, setTrimEnd,
   coverTime, setCoverTime, cropMode, setCropMode, content, setContent, setVideoDuration, setInitialTrimEnd,
-  onReplace, onClose, onPublish, submitting, uploadProgress, publishStage, error,
+  onReplace, onClose, onPublish, onCancel, onBackToEdit, onFinish, onViewReel,
+  submitting, uploadProgress, uploadedBytes = 0, totalBytes = videoFile?.size || 0,
+  progressStage = 'idle', publishedPost, publishStage, error,
 }) {
   const videoRef = useRef(null);
   const coverPreviewRef = useRef(null);
@@ -48,6 +53,20 @@ export default function CreateReelEditor({
   const [playing, setPlaying] = useState(false);
   const [mutedPreview, setMutedPreview] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const statusContent = {
+    preparing: ['Preparing your Reel', 'Checking the selected video and preparing a secure upload.'],
+    uploading: ['Uploading your Reel', 'Transferring video bytes securely to storage. Keep this screen open.'],
+    processing: ['Processing your video', 'Upload complete. Vuprise is checking the stored video before publishing.'],
+    publishing: ['Publishing your Reel', 'Saving the verified video and Reel details to Vuprise.'],
+    published: ['Reel published successfully', 'Your Reel is live on Vuprise.'],
+    failed: ['Reel could not be published', error || 'Your video and caption are still available. Retry when you are ready.'],
+  }[progressStage];
+  const showProgress = Boolean(statusContent && progressStage !== 'idle');
+  const prettyBytes = (bytes) => {
+    if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   useEffect(() => {
     if (!videoPreview || !videoDuration) return undefined;
@@ -146,6 +165,30 @@ export default function CreateReelEditor({
           : <Button onClick={() => setPublishScreen(true)} disabled={!videoFile || !videoDuration || submitting} variant="contained" sx={{ minWidth: 76, borderRadius: 5, bgcolor: '#fff', color: '#000', fontWeight: 800, '&:hover': { bgcolor: '#e8e8e8' } }}>Next</Button>}
       </Stack>
 
+      {showProgress ? <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: { xs: 2.5, sm: 4 }, py: 3, textAlign: 'center', gap: 2 }}>
+        <Box sx={{ width: 'min(58vw, 240px)', aspectRatio: '9 / 16', maxHeight: '32dvh', borderRadius: 3, overflow: 'hidden', bgcolor: '#16181d', border: '1px solid rgba(255,255,255,.18)', boxShadow: '0 18px 50px rgba(0,0,0,.48)' }}>
+          {videoPreview && <Box component="video" src={videoPreview} muted playsInline controls={!submitting} preload="metadata" aria-label="Selected Reel preview" sx={{ width: '100%', height: '100%', objectFit: cropMode === 'cover' ? 'cover' : 'contain', bgcolor: '#000' }} />}
+        </Box>
+        <Box sx={{ width: 'min(100%, 480px)' }}>
+          <Box sx={{ display: 'grid', placeItems: 'center', mb: 1, color: progressStage === 'published' ? '#fff' : progressStage === 'failed' ? '#ff7777' : '#fff' }}>
+            {progressStage === 'published' ? <CheckCircleRoundedIcon sx={{ fontSize: 34 }}/> : progressStage === 'failed' ? <ErrorOutlineRoundedIcon sx={{ fontSize: 34 }}/> : <CloudUploadRoundedIcon sx={{ fontSize: 34 }}/>}
+          </Box>
+          <Typography variant="h5" fontWeight={850} aria-live="polite">{statusContent[0]}</Typography>
+          <Typography sx={{ mt: .75, color: 'rgba(255,255,255,.68)', overflowWrap: 'anywhere' }}>{content.trim() || videoFile?.name || 'Your Reel'}</Typography>
+          <Typography variant="body2" sx={{ mt: 1, color: 'rgba(255,255,255,.74)' }}>{progressStage === 'uploading' ? `${uploadProgress}% · ${prettyBytes(uploadedBytes)} of ${prettyBytes(totalBytes)}` : statusContent[1]}</Typography>
+          {progressStage === 'uploading' && <Box role="progressbar" aria-label="Reel upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress} sx={{ mt: 2, height: 8, borderRadius: 8, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.16)' }}>
+            <Box sx={{ height: '100%', width: `${uploadProgress}%`, borderRadius: 8, bgcolor: '#fff', transition: 'width 120ms linear' }}/>
+          </Box>}
+          {['processing', 'publishing', 'preparing'].includes(progressStage) && <Box sx={{ mt: 2, height: 8, borderRadius: 8, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.16)' }}><Box sx={{ height: '100%', width: '34%', borderRadius: 8, bgcolor: '#fff', animation: 'reel-progress-indeterminate 1.2s ease-in-out infinite alternate', '@keyframes reel-progress-indeterminate': { from: { transform: 'translateX(-20%)' }, to: { transform: 'translateX(210%)' } }, '@media (prefers-reduced-motion: reduce)': { animation: 'none', width: '100%' } }}/></Box>}
+          {totalBytes > 0 && ['uploading', 'processing', 'publishing'].includes(progressStage) && <Typography variant="caption" display="block" sx={{ mt: .75, color: 'rgba(255,255,255,.56)' }}>{prettyBytes(uploadedBytes)} / {prettyBytes(totalBytes)}</Typography>}
+        </Box>
+        {progressStage === 'failed' && <Alert severity="error" sx={{ width: 'min(100%, 480px)', textAlign: 'left' }}>{error || statusContent[1]}</Alert>}
+        <Stack direction="row" flexWrap="wrap" justifyContent="center" gap={1} sx={{ mt: 1 }}>
+          {progressStage === 'uploading' && <Button onClick={onCancel} variant="outlined" sx={{ color: '#fff', borderColor: 'rgba(255,255,255,.4)' }}>Cancel upload</Button>}
+          {progressStage === 'failed' && <><Button onClick={onPublish} variant="contained" sx={{ bgcolor: '#fff', color: '#000', fontWeight: 800 }}>Retry</Button><Button onClick={onBackToEdit} sx={{ color: '#fff' }}>Back to edit</Button></>}
+          {progressStage === 'published' && <><Button onClick={onViewReel} variant="contained" sx={{ bgcolor: '#fff', color: '#000', fontWeight: 800 }}>View Reel</Button><Button onClick={onFinish} sx={{ color: '#fff' }}>Done</Button></>}
+        </Stack>
+      </Box> : <>
       {error && <Alert severity="error" sx={{ mx: 2, mb: 1, flexShrink: 0 }}>{error}</Alert>}
       {publishStage && <Typography aria-live="polite" variant="caption" sx={{ mx: 2, mb: 1, color: 'rgba(255,255,255,.74)' }}>{publishStage}{uploadProgress > 0 ? ` ${uploadProgress}%` : ''}</Typography>}
 
@@ -198,8 +241,9 @@ export default function CreateReelEditor({
           <Chip label={`${videoDuration ? timeLabel(trimEnd - trimStart) : '0:00'} video · ${cropMode === 'cover' ? 'portrait fill' : 'fit original ratio'}`} sx={{ alignSelf: 'flex-start', color: '#fff', border: '1px solid rgba(255,255,255,.22)', bgcolor: 'transparent' }}/>
         </Stack>
       </Box>}
+      </>}
     </DialogContent>
-    {publishScreen && <DialogActions sx={{ px: 2, pt: 1, pb: 'max(12px, env(safe-area-inset-bottom))', bgcolor: '#08090b', borderTop: '1px solid rgba(255,255,255,.12)' }}>
+    {publishScreen && !showProgress && <DialogActions sx={{ px: 2, pt: 1, pb: 'max(12px, env(safe-area-inset-bottom))', bgcolor: '#08090b', borderTop: '1px solid rgba(255,255,255,.12)' }}>
       <Button onClick={() => setPublishScreen(false)} disabled={submitting} sx={{ color: '#fff' }}>Back to edit</Button>
       <Button onClick={onPublish} disabled={!videoFile || submitting} variant="contained" sx={{ ml: 'auto', minWidth: 112, borderRadius: 5, bgcolor: '#fff', color: '#000', fontWeight: 800, '&:hover': { bgcolor: '#e8e8e8' } }}>{submitting ? `Uploading ${uploadProgress || ''}%` : 'Share Reel'}</Button>
     </DialogActions>}

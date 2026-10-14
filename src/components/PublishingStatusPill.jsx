@@ -4,6 +4,8 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import { useNavigate } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 import { usePublishing } from '../context/PublishingContext';
 import StatusMark from './reactbits/StatusMark';
 import Stepper, { Step } from './reactbits/Stepper';
@@ -11,16 +13,19 @@ import Stepper, { Step } from './reactbits/Stepper';
 const stageLabel = (stage) => ({
   preparing: 'Preparing post',
   uploading: 'Uploading media',
+  processing: 'Processing video',
   publishing: 'Publishing post',
-  published: 'Post published',
+  published: 'Published successfully',
   failed: 'Publishing failed',
 }[stage] || 'Publishing');
 
 const PublishingStatusPill = () => {
   const { status, dismissPublishing, toggleExpanded } = usePublishing();
+  const theme = useTheme();
+  const navigate = useNavigate();
   if (!status?.visible) return null;
 
-  const isActive = ['preparing', 'uploading', 'publishing'].includes(status.stage);
+  const isActive = ['preparing', 'uploading', 'processing', 'publishing'].includes(status.stage);
   const Icon = status.stage === 'published' ? CheckCircleRoundedIcon : status.stage === 'failed' ? ErrorOutlineRoundedIcon : CloudUploadRoundedIcon;
   const retry = async (event) => {
     event.stopPropagation();
@@ -70,7 +75,8 @@ const PublishingStatusPill = () => {
           </Box>
           {status.progress != null && status.stage === 'uploading' && <Typography variant="caption" fontWeight={700} sx={{ flexShrink: 0 }}>{status.progress}%</Typography>}
         </Box>
-        {status.stage === 'failed' && status.retry && <Button size="small" onClick={retry} sx={{ flexShrink: 0, minWidth: 56 }}>Retry</Button>}
+          {status.stage === 'published' && status.post?._id && <Button size="small" onClick={(event) => { event.stopPropagation(); navigate(`/post/${status.post._id}`); dismissPublishing(); }} sx={{ flexShrink: 0 }}>View</Button>}
+          {status.stage === 'failed' && status.retry && <Button size="small" onClick={retry} sx={{ flexShrink: 0, minWidth: 56 }}>Retry</Button>}
         <IconButton size="small" onClick={dismissPublishing} aria-label="Minimize publishing status" sx={{ width: 34, height: 34, flexShrink: 0 }}><CloseRoundedIcon fontSize="small" /></IconButton>
       </Stack>
       {isActive && status.stage === 'uploading' && (
@@ -89,6 +95,7 @@ const PublishingStatusPill = () => {
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" fontWeight={700}>{stageLabel(status.stage)}</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{status.message || 'We will keep this status updated while your post is processed.'}</Typography>
+              {status.bytesTotal > 0 && <Typography variant="caption" color="text.secondary" display="block">{(status.bytesUploaded || 0).toLocaleString()} / {status.bytesTotal.toLocaleString()} bytes</Typography>}
             </Box>
           </Stack>
           {status.stage === 'failed' && status.message && <Alert severity="error" sx={{ mt: 1 }}>{status.message}</Alert>}

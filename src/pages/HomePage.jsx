@@ -52,7 +52,7 @@ const HomePage = () => {
 
   useEffect(() => {
     const handleCreated = (event) => {
-      if (event.detail) setPosts((prev) => [event.detail, ...prev]);
+      if (event.detail) setPosts((prev) => [event.detail, ...prev.filter((post) => String(post._id) !== String(event.detail._id))]);
     };
     window.addEventListener('nexora:post-created', handleCreated);
     return () => window.removeEventListener('nexora:post-created', handleCreated);

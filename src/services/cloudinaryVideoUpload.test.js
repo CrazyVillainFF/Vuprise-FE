@@ -37,7 +37,7 @@ test('video bytes are posted to Cloudinary directly with the scoped server signa
         timestamp: 123, publicId: 'nexora/posts/videos/user/unique', overwrite: false,
         allowed_formats: 'mp4,webm,mov,m4v', context: 'user_id=user|upload_session=session', signature: 'scoped-signature',
       },
-      onProgress: (value) => progress.push(value),
+      onProgress: (value, bytes) => progress.push({ value, bytes }),
     });
     assert.equal(result.secure_url, 'https://media.example/video.mp4');
     assert.equal(calls.length, 1);
@@ -45,7 +45,10 @@ test('video bytes are posted to Cloudinary directly with the scoped server signa
     assert.equal(calls[0].body.get('signature'), 'scoped-signature');
     assert.equal(calls[0].body.get('api_key'), 'public-key');
     assert.equal(calls[0].body.get('file').size, 4);
-    assert.deepEqual(progress, [99, 100]);
+    assert.deepEqual(progress, [
+      { value: 99, bytes: { loaded: 4, total: 4 } },
+      { value: 100, bytes: { loaded: 4, total: 4 } },
+    ]);
   } finally {
     axios.post = originalPost;
   }
@@ -61,7 +64,7 @@ test('interrupted provider requests retry only a bounded number of times', async
   try {
     await assert.rejects(uploadVideoDirectly({
       file: new Blob(['clip']),
-      authorization: { cloudName: 'test-cloud', uploadId: '65aabbccddeeff0011223344' },
+      authorization: { cloudName: 'test-cloud', uploadId: '65aabbccddeeff0011223344', publicId: 'test/video', signature: 'sig' },
     }), /network interrupted/);
     assert.equal(attempts, 3);
   } finally {

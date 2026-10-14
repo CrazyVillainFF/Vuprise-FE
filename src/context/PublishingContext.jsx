@@ -13,8 +13,8 @@ export const PublishingProvider = ({ children }) => {
   const updatePublishing = useCallback((updates) => {
     setStatus((current) => current ? { ...current, ...updates, visible: true } : current);
   }, []);
-  const completePublishing = useCallback(() => {
-    setStatus((current) => current ? { ...current, stage: 'published', progress: 100, message: 'Your post is live.', retry: null, visible: true } : current);
+  const completePublishing = useCallback((post = null) => {
+    setStatus((current) => current ? { ...current, post: post || current.post || null, stage: 'published', progress: 100, message: 'Your post is live.', retry: null, visible: true } : current);
     window.clearTimeout(dismissTimerRef.current);
     dismissTimerRef.current = window.setTimeout(() => setStatus((current) => current?.stage === 'published' ? null : current), 7000);
   }, []);
@@ -23,12 +23,16 @@ export const PublishingProvider = ({ children }) => {
     setStatus((current) => current ? { ...current, stage: 'failed', message, retry, visible: true } : current);
   }, []);
   const dismissPublishing = useCallback(() => setStatus((current) => current ? { ...current, visible: false } : current), []);
+  const retryPublishing = useCallback(async () => {
+    const retry = status?.retry;
+    if (retry) await retry();
+  }, [status]);
   const toggleExpanded = useCallback(() => setStatus((current) => current ? { ...current, expanded: !current.expanded } : current), []);
 
   useEffect(() => () => window.clearTimeout(dismissTimerRef.current), []);
 
   return (
-    <PublishingContext.Provider value={{ status, startPublishing, updatePublishing, completePublishing, failPublishing, dismissPublishing, toggleExpanded }}>
+    <PublishingContext.Provider value={{ status, startPublishing, updatePublishing, completePublishing, failPublishing, dismissPublishing, retryPublishing, toggleExpanded }}>
       {children}
     </PublishingContext.Provider>
   );

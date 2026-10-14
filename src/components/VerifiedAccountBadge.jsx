@@ -61,7 +61,7 @@ export default function VerifiedAccountBadge({ color = 'blue', size = 20, sx = {
         role="img"
         aria-label={badgeLabels[selectedColor]}
         tabIndex={0}
-        sx={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', lineHeight: 0, cursor: 'help' }}
+        sx={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', lineHeight: 0, cursor: 'help', ml: '0.25em' }}
       >
         {mark}
       </Box>
