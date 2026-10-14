@@ -30,6 +30,7 @@ import { postAPI } from '../services/api';
 import { uploadVideoDirectly } from '../services/cloudinaryVideoUpload';
 import { usePublishing } from '../context/PublishingContext';
 import CreateReelEditor from './CreateReelEditor';
+import { clampTrimEndToDuration, readFiniteVideoDuration } from '../utils/videoDuration';
 
 const POPULAR_TAGS = ['#engineering', '#productdesign', '#ai', '#leadership', '#techtrends'];
 
@@ -62,6 +63,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
   const uploadControllerRef = useRef(null);
   const videoIdempotencyKeyRef = useRef('');
   const videoUploadSignatureRef = useRef('');
+  const videoDurationRef = useRef(0);
   const submittingRef = useRef(false);
   const retryPublishRef = useRef(null);
 
@@ -102,6 +104,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       setVideoPreview(url); setVideoFile(file);
       videoIdempotencyKeyRef.current = crypto.randomUUID();
       videoUploadSignatureRef.current = '';
+      videoDurationRef.current = 0;
       setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
       setReelCoverTime(0);
     } else {
@@ -119,7 +122,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
     videoIdempotencyKeyRef.current = '';
     videoUploadSignatureRef.current = '';
     if (videoPreview) URL.revokeObjectURL(videoPreview);
-    setVideoPreview(''); setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
+    setVideoPreview(''); videoDurationRef.current = 0; setVideoDuration(0); setTrimStart(0); setTrimEnd(0);
     setReelCoverTime(0);
     setUploadedBytes(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -137,8 +140,13 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
       setError('Please add some text or media to share.');
       return;
     }
-    if (videoFile && (!videoDuration || trimEnd <= trimStart || trimEnd - trimStart > 35.0001)) {
-      setError('Select a valid video clip that is 35 seconds or shorter.'); return;
+    const detectedDuration = videoDurationRef.current || videoDuration;
+    const safeTrimEnd = clampTrimEndToDuration(trimEnd, detectedDuration);
+    if (videoFile && (!detectedDuration || safeTrimEnd === null || safeTrimEnd <= trimStart || safeTrimEnd - trimStart > 35.0001)) {
+      setError(safeTrimEnd === null
+        ? 'The trim end is later than the latest detected video duration. Adjust the trim and retry.'
+        : 'Select a valid video clip that is 35 seconds or shorter.');
+      return;
     }
 
     const selectedPreview = videoPreview || imagePreview || '';
@@ -169,7 +177,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
 
       if (videoFile) {
         setPublishStage('Requesting secure upload…');
-        const requestSignature = JSON.stringify([videoFile.name, videoFile.size, videoFile.lastModified, trimStart, trimEnd, reelMode, reelCropMode, reelCoverTime]);
+        const requestSignature = JSON.stringify([videoFile.name, videoFile.size, videoFile.lastModified, trimStart, safeTrimEnd, reelMode, reelCropMode, reelCoverTime]);
         if (!videoIdempotencyKeyRef.current || videoUploadSignatureRef.current !== requestSignature) {
           videoIdempotencyKeyRef.current = crypto.randomUUID();
           videoUploadSignatureRef.current = requestSignature;
@@ -178,12 +186,14 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           mimeType: videoFile.type,
           fileSize: videoFile.size,
           trimStart,
-          trimEnd,
+          trimEnd: safeTrimEnd,
+          clientVideoDuration: detectedDuration,
           presentation: reelMode ? 'reel' : 'post',
           cropMode: reelMode ? reelCropMode : 'cover',
-          coverTime: reelMode ? Math.min(Math.max(reelCoverTime, trimStart), trimEnd) : trimStart,
+          coverTime: reelMode ? Math.min(Math.max(reelCoverTime, trimStart), safeTrimEnd) : trimStart,
           idempotencyKey: videoIdempotencyKeyRef.current,
         };
+        console.info('[reel-duration] publish-request', JSON.stringify({ videoDurationSeconds: detectedDuration, trimStartSeconds: trimStart, trimEndSeconds: safeTrimEnd, fileBytes: videoFile.size, uploadIsFullSource: true }));
         videoIdempotencyKeyRef.current = request.idempotencyKey;
         const authorizationResponse = await postAPI.signVideoUpload(request, { signal: uploadControllerRef.current.signal });
         const authorization = authorizationResponse.data;
@@ -214,6 +224,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
               updatePublishing({ progress, stage: 'uploading', bytesUploaded: bytes.loaded || 0, bytesTotal: bytes.total || videoFile.size, message: `Secure video upload: ${progress}% complete.` });
             },
           });
+          console.info('[reel-duration] cloudinary-upload-response', JSON.stringify({ browserDurationSeconds: detectedDuration, cloudinaryUploadDurationSeconds: Number(uploadedAsset?.duration), resourceType: uploadedAsset?.resource_type, publicIdMatches: uploadedAsset?.public_id === authorization.publicId }));
           if (uploadedAsset?.resource_type !== 'video' || !uploadedAsset?.secure_url || uploadedAsset.public_id !== authorization.publicId) {
             throw new Error('Cloud storage returned incomplete video details. Your upload is safe to retry; press Retry.');
           }
@@ -231,6 +242,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
         const result = await postAPI.completeVideoUpload({
           uploadId: authorization.uploadId,
           content: content.trim(),
+          clientVideoDuration: detectedDuration,
         }, { signal: uploadControllerRef.current.signal, timeout: 60000 });
         if (result.data.success && result.data.post?._id && result.data.post?.videoUrl) {
           onPostCreated?.(result.data.post);
@@ -421,14 +433,22 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           trimEnd={trimEnd}
           setTrimStart={setTrimStart}
           setTrimEnd={setTrimEnd}
-          setInitialTrimEnd={setTrimEnd}
           coverTime={reelCoverTime}
           setCoverTime={setReelCoverTime}
           cropMode={reelCropMode}
           setCropMode={setReelCropMode}
           content={content}
           setContent={setContent}
-          setVideoDuration={setVideoDuration}
+          onVideoMetadata={(event) => {
+            const duration = readFiniteVideoDuration(event.currentTarget);
+            if (!duration) return;
+            const previousDuration = videoDurationRef.current;
+            videoDurationRef.current = duration;
+            console.info('[reel-duration] browser-metadata', JSON.stringify({ durationSeconds: duration, previousDurationSeconds: previousDuration || null, readyState: event.currentTarget.readyState, durationState: Number.isFinite(event.currentTarget.duration) ? 'finite' : String(event.currentTarget.duration) }));
+            setVideoDuration(duration);
+            setTrimEnd((current) => current <= 0 ? Math.min(duration, 35) : Math.min(current, duration));
+            setTrimStart((current) => Math.min(current, Math.max(0, duration - 0.05)));
+          }}
           onReplace={() => { if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } }}
           onClose={() => { if (!submitting) { if (progressStage === 'published') { setContent(''); handleRemoveImage(); } setProgressStage('idle'); setPublishedPost(null); setReelMode(false); setOpenModal(false); } }}
           onCancel={() => uploadControllerRef.current?.abort()}
@@ -536,9 +556,13 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange 
           {videoPreview && (
             <Box sx={{ position: 'relative', mt: 1.75, borderRadius: 2.5, overflow: 'hidden', bgcolor: 'background.default', border: (theme) => `1px solid ${theme.palette.divider}` }}>
               <Box component="video" src={videoPreview} controls playsInline preload="metadata" onPlay={(event) => { if (event.currentTarget.currentTime < trimStart || event.currentTarget.currentTime >= trimEnd) event.currentTarget.currentTime = trimStart; }} onLoadedMetadata={(event) => {
-                const duration = event.currentTarget.duration;
-                if (!Number.isFinite(duration) || duration <= 0) { setError('This video’s duration could not be verified.'); return; }
-                setVideoDuration(duration); setTrimEnd(Math.min(duration, 35));
+                const duration = readFiniteVideoDuration(event.currentTarget);
+                if (!duration) { setError('Waiting for the selected video duration. If it does not load, choose the video again.'); return; }
+                videoDurationRef.current = duration;
+                setVideoDuration(duration); setTrimEnd((current) => current <= 0 ? Math.min(duration, 35) : Math.min(current, duration));
+              }} onDurationChange={(event) => {
+                const duration = readFiniteVideoDuration(event.currentTarget);
+                if (duration) { videoDurationRef.current = duration; setVideoDuration(duration); setTrimEnd((current) => current <= 0 ? Math.min(duration, 35) : Math.min(current, duration)); }
               }} onTimeUpdate={(event) => { const video = event.currentTarget; if (video.currentTime < trimStart) video.currentTime = trimStart; if (video.currentTime >= trimEnd && trimEnd > trimStart) { video.pause(); video.currentTime = trimStart; } }} sx={{ width: '100%', maxHeight: 280, display: 'block' }} />
               {videoDuration > 0 && <Box sx={{ px: { xs: 2, sm: 2.25 }, pt: 1, pb: 1.5 }}>
                 <Typography variant="caption" color="text.secondary">Trim clip · selected {(trimEnd - trimStart).toFixed(2)}s / 35s max</Typography>
