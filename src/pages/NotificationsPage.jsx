@@ -98,11 +98,10 @@ const NotificationsPage = () => {
       const conversationId = item.conversation?._id || item.conversation;
       if (conversationId) navigate(`/messages?official=${encodeURIComponent(conversationId)}`);
     } else if (item.type === 'connection_request' || item.type === 'connection_accepted') {
-      if (item.type === 'connection_request') {
-        navigate('/people');
-      } else {
-        navigate(`/profile/${item.sender?._id || item.sender}`);
-      }
+      // A connection notification belongs to its sender.  Opening the profile
+      // gives the recipient a stable place to inspect the relationship and
+      // connect back, instead of sending them to an unrelated people list.
+      navigate(`/profile/${item.sender?._id || item.sender}`);
     } else if (item.post) {
       navigate(item.post?._id ? `/post/${item.post._id}` : '/home');
     }
@@ -275,11 +274,8 @@ const NotificationsPage = () => {
                       const pending = loadingRequestId === item._id;
                       return (
                         <React.Fragment key={`request-actions-${item._id}`}>
-                          <Button size="small" variant="contained" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleConnectionRequest(event, item, requestId, 'accept')} aria-label={`Accept connection request from ${sender.name || 'member'}`}>
+                          <Button size="small" variant="contained" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleConnectionRequest(event, item, requestId, 'accept')} aria-label={`Connect back with ${sender.name || 'member'}`}>
                             {pending ? <CircularProgress size={16} color="inherit" /> : 'Connect back'}
-                          </Button>
-                          <Button size="small" variant="outlined" color="inherit" disabled={pending || Boolean(loadingRequestId)} onClick={(event) => handleConnectionRequest(event, item, requestId, 'decline')} aria-label={`Decline connection request from ${sender.name || 'member'}`}>
-                            Decline
                           </Button>
                         </React.Fragment>
                       );

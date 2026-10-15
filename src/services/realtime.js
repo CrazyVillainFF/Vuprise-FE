@@ -1,7 +1,7 @@
 const apiUrl = new URL(import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
 const baseUrl = `${apiUrl.origin}${apiUrl.pathname.replace(/\/$/, '')}`;
 const listeners = new Set();
-const watchedUserIds = new Set();
+const watchedUserIdsByScope = new Map();
 let connection = null;
 
 const publish = (event) => listeners.forEach((listener) => listener(event));
@@ -11,6 +11,12 @@ const request = (path, body, token, keepalive = false) => fetch(`${baseUrl}${pat
   body: JSON.stringify(body),
   keepalive,
 });
+
+const allWatchedUserIds = () => [...new Set([...watchedUserIdsByScope.values()].flatMap((ids) => ids))].slice(0, 100);
+const syncPresenceWatches = () => {
+  if (!connection?.sessionId) return;
+  request('/realtime/watch', { sessionId: connection.sessionId, userIds: allWatchedUserIds() }, connection.token).catch(() => {});
+};
 
 export function connectRealtime(token) {
   disconnectRealtime();
@@ -71,7 +77,7 @@ export function connectRealtime(token) {
               state.heartbeat = window.setInterval(async () => {
                 await state.beatNow?.();
               }, payload.heartbeatMs || 25_000);
-              if (watchedUserIds.size) request('/realtime/watch', { sessionId: state.sessionId, userIds: [...watchedUserIds].slice(0, 100) }, state.token).catch(() => {});
+              if (watchedUserIdsByScope.size) syncPresenceWatches();
             }
           }
         }
@@ -124,11 +130,14 @@ export function disconnectRealtime({ notify = false } = {}) {
   state.controller?.abort();
 }
 
-export function watchPresence(ids) {
-  watchedUserIds.clear();
-  for (const id of ids || []) if (id) watchedUserIds.add(String(id));
-  if (!connection?.sessionId) return;
-  request('/realtime/watch', { sessionId: connection.sessionId, userIds: [...watchedUserIds].slice(0, 100) }, connection.token).catch(() => {});
+export function watchPresence(ids, scope = 'default') {
+  watchedUserIdsByScope.set(scope, [...new Set((ids || []).filter(Boolean).map(String))]);
+  syncPresenceWatches();
+}
+
+export function unwatchPresence(scope = 'default') {
+  watchedUserIdsByScope.delete(scope);
+  syncPresenceWatches();
 }
 
 export function subscribeRealtime(listener) {

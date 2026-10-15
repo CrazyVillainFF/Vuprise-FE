@@ -4,7 +4,7 @@ export const formatLastSeen = (value, now = Date.now()) => {
   const timestamp = date.getTime();
   if (!Number.isFinite(timestamp) || timestamp > now) return '';
   const elapsed = Math.floor((now - timestamp) / 60_000);
-  if (elapsed < 1) return 'Active just now';
+  if (elapsed < 1) return 'Last seen just now';
   if (elapsed < 60) return `Last seen ${elapsed} ${elapsed === 1 ? 'minute' : 'minutes'} ago`;
   const hours = Math.floor(elapsed / 60);
   if (hours < 24) return `Last seen ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;

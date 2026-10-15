@@ -47,7 +47,7 @@ import ImageUploadModal from '../components/ImageUploadModal';
 import { ProfileHeaderSkeleton, PostSkeleton } from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
-import { subscribeRealtime, watchPresence } from '../services/realtime';
+import { subscribeRealtime, watchPresence, unwatchPresence } from '../services/realtime';
 import SpotlightCard from '../components/reactbits/SpotlightCard';
 import ReportDialog from '../components/ReportDialog';
 import { formatLastSeen } from '../utils/presenceTime';
@@ -91,12 +91,13 @@ const ProfilePage = () => {
 
   useEffect(() => {
     setPresence({ state: 'unknown', lastSeenAt: null });
-    watchPresence(profileUserId ? [profileUserId] : []);
-    return subscribeRealtime((event) => {
+    watchPresence(profileUserId ? [profileUserId] : [], 'profile');
+    const unsubscribe = subscribeRealtime((event) => {
       if (event.type === 'presence' && String(event.userId) === String(profileUserId)) {
         setPresence((current) => ({ state: event.state, lastSeenAt: event.state === 'hidden' ? null : event.lastSeenAt || current.lastSeenAt || null }));
       }
     });
+    return () => { unsubscribe(); unwatchPresence('profile'); };
   }, [profileUserId]);
 
   useEffect(() => {

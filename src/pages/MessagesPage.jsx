@@ -18,14 +18,14 @@ import EmojiPickerControl from '../components/EmojiPickerControl';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { groupAPI, messageAPI } from '../services/api';
+import { groupAPI, messageAPI, userAPI } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
 import { decryptMessage, getDeviceKeyPair } from '../utils/e2ee';
 import { sortContactsByRecentConversations } from '../utils/messageInbox';
 import { getBrandedHeadline } from '../utils/brandCopy';
 import Badge from '@mui/material/Badge';
 import TypingIndicator from '../components/TypingIndicator';
-import { sendTyping, subscribeRealtime, watchPresence } from '../services/realtime';
+import { sendTyping, subscribeRealtime, watchPresence, unwatchPresence } from '../services/realtime';
 import GroupChatPanel from './GroupChatPage';
 import MessageInteractions from '../components/MessageInteractions';
 import { formatLastSeen } from '../utils/presenceTime';
@@ -163,7 +163,10 @@ const MessagesPage = () => {
     ...conversations.map((conversation) => conversation.peer?._id),
     ...groups.flatMap((group) => (group.members || []).map((member) => member.user?._id || member.user)),
   ].filter(Boolean), [contacts, conversations, groups]);
-  useEffect(() => { watchPresence(presenceTargets); }, [presenceTargets]);
+  useEffect(() => {
+    watchPresence(presenceTargets, 'messages');
+    return () => unwatchPresence('messages');
+  }, [presenceTargets]);
 
   useEffect(() => {
     if (!attachment) { setAttachmentPreview(''); return undefined; }
@@ -574,14 +577,18 @@ const MessagesPage = () => {
     const requestedId = searchParams.get('contact');
     if (!requestedId) { contactSelectionHandled.current = ''; return; }
     if (loading || contactSelectionHandled.current === requestedId) return;
-    const contact = contacts.find((item) => String(item._id) === String(requestedId));
-    if (!contact) {
-      setError('This member is not currently available for messaging.');
-      contactSelectionHandled.current = requestedId;
-      return;
-    }
     contactSelectionHandled.current = requestedId;
-    openConversation(contact);
+    const contact = contacts.find((item) => String(item._id) === String(requestedId));
+    if (contact) { openConversation(contact); return; }
+    // Public profiles are intentionally not all loaded in the connection-only
+    // contact list. Ask the backend to enforce privacy before showing an error.
+    userAPI.getUserById(requestedId)
+      .then((response) => {
+        const member = response.data?.user;
+        if (!member) throw new Error('Member not found.');
+        return openConversation(member);
+      })
+      .catch((requestError) => setError(requestError.message || 'This member is not available for messaging.'));
   }, [contacts, loading, openConversation, searchParams]);
 
   const openGroupConversation = (group) => {
@@ -815,9 +822,9 @@ const MessagesPage = () => {
               />
             </Box>
             <Divider />
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, py: 1.5 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ px: 2, py: 1.5 }}>
               <Typography variant="subtitle2" fontWeight={750}>Chats</Typography>
-              <Typography variant="caption" color="text.secondary">{chatItems.length} {chatItems.length === 1 ? 'chat' : 'chats'}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{chatItems.length} {chatItems.length === 1 ? 'chat' : 'chats'}</Typography>
             </Stack>
             <Box sx={{ minHeight: 0, overflowY: 'auto', flex: 1 }}>
               {chatItems.length ? (
@@ -913,13 +920,15 @@ const MessagesPage = () => {
                           minWidth: 0,
                           minHeight: 76,
                           px: 1.75,
+                          pr: conversation ? 6.5 : 1.75,
                           '&.Mui-selected': { bgcolor: 'action.selected' },
                           '&.Mui-selected:hover': { bgcolor: 'action.selected' },
                           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
                         }}
                       >
-                    <ListItemAvatar sx={{ minWidth: 62 }}><Badge overlap="circular" variant="dot" invisible={presenceByUser[contact._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ '& .MuiBadge-badge': { bgcolor: '#22c55e', color: '#22c55e', border: '2px solid', borderColor: 'background.paper' } }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
+                    <ListItemAvatar sx={{ minWidth: { xs: 58, sm: 62 } }}><Badge overlap="circular" variant="dot" invisible={presenceByUser[contact._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ '& .MuiBadge-badge': { bgcolor: '#22c55e', color: '#22c55e', border: '2px solid', borderColor: 'background.paper' } }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
                         <ListItemText
+                          sx={{ minWidth: 0, mr: 0 }}
                           primary={<Stack component="span" direction="row" alignItems="center" gap={1} sx={{ minWidth: 0 }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
                           secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
                             ? <TypingIndicator label="Typing…" compact />
@@ -927,8 +936,10 @@ const MessagesPage = () => {
                           primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
                           secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
                         />
-                        <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
-                          {presenceByUser[contact._id]?.state === 'online' ? <Typography variant="caption" color="text.primary" noWrap>Online</Typography> : presenceByUser[contact._id]?.state === 'offline' ? <Typography variant="caption" color="text.secondary" noWrap>{formatLastSeen(presenceByUser[contact._id]?.lastSeenAt, presenceNow)}</Typography> : null}
+                        <Stack alignItems="flex-end" sx={{ pl: 1, pr: 0, minWidth: 0, flexShrink: 0 }}>
+                          <Typography variant="caption" color={presenceByUser[contact._id]?.state === 'online' ? 'text.primary' : 'text.secondary'} noWrap sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 118, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {presenceByUser[contact._id]?.state === 'online' ? 'Online' : presenceByUser[contact._id]?.state === 'offline' ? formatLastSeen(presenceByUser[contact._id]?.lastSeenAt, presenceNow) : ''}
+                          </Typography>
                           {hasMessages && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(conversation.lastMessageAt || conversation.lastMessage.createdAt)}</Typography>}
                           {unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}
                         </Stack>

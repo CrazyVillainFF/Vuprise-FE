@@ -231,7 +231,16 @@ export default function AdminPage() {
     catch (e) { setError(e.message); } finally { setSaving(false); }
   };
 
-  const renderUserActions = (user) => <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }} flexWrap="wrap" sx={{ gap: { xs: 0.25, sm: 0.5 }, minWidth: 0 }}><Button size="small" onClick={() => openDetail(user)}>View</Button>{user.moderationStatus !== 'deleted' && <Button size="small" disabled={saving} startIcon={<VerifiedAccountBadge color={user.verificationBadgeColor} size={16}/>} onClick={() => openVerification(user)}>{user.isVerifiedAccount ? 'Badge' : 'Verify'}</Button>}{user.moderationStatus === 'active' && <><Button size="small" onClick={() => openAction(user, 'temporary_ban')}>Temp ban</Button><Button size="small" onClick={() => openAction(user, 'permanent_ban')}>Ban</Button><Button size="small" onClick={() => openAction(user, 'warning')}>Warn</Button></>}{['temporary_ban','permanent_ban'].includes(user.moderationStatus) && <Button size="small" onClick={() => openAction(user, 'lift_ban')}>Lift ban</Button>}{user.moderationStatus !== 'deleted' && <Button size="small" color="error" onClick={() => openAction(user, 'delete')}>Delete</Button>}</Stack>;
+  const renderUserActions = (user) => {
+    const actionSx = { minWidth: 0, width: '100%', whiteSpace: 'nowrap', px: 0.75, fontSize: { xs: '0.76rem', sm: '0.8125rem' } };
+    return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(auto-fit, minmax(74px, 1fr))' }, gap: 0.75, width: '100%', minWidth: 0 }}>
+      <Button size="small" sx={actionSx} onClick={() => openDetail(user)}>View</Button>
+      {user.moderationStatus !== 'deleted' && <Button size="small" sx={actionSx} disabled={saving} startIcon={<VerifiedAccountBadge color={user.verificationBadgeColor} size={16}/>} onClick={() => openVerification(user)}>{user.isVerifiedAccount ? 'Badge' : 'Verify'}</Button>}
+      {user.moderationStatus === 'active' && <><Button size="small" sx={actionSx} onClick={() => openAction(user, 'temporary_ban')}>Temp ban</Button><Button size="small" sx={actionSx} onClick={() => openAction(user, 'permanent_ban')}>Ban</Button><Button size="small" sx={actionSx} onClick={() => openAction(user, 'warning')}>Warn</Button></>}
+      {['temporary_ban','permanent_ban'].includes(user.moderationStatus) && <Button size="small" sx={actionSx} onClick={() => openAction(user, 'lift_ban')}>Lift ban</Button>}
+      {user.moderationStatus !== 'deleted' && <Button size="small" sx={actionSx} color="error" onClick={() => openAction(user, 'delete')}>Delete</Button>}
+    </Box>;
+  };
 
   return <Box sx={{ maxWidth: 1440, mx: 'auto', px: { xs: 1.25, sm: 1.5, md: 3 }, py: { xs: 1.5, md: 4 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1.5} sx={{ mb: 2.5 }}>
@@ -250,8 +259,8 @@ export default function AdminPage() {
       <Divider/>
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.25} sx={{ p: 2 }}>
         {section === 0 ? <>
-          <TextField size="small" placeholder="Search name, email, or user ID" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} InputProps={{ startAdornment: <SearchRoundedIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }}/> }} sx={{ flex: 1 }}/>
-          <TextField select size="small" label="Account status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} sx={{ minWidth: 200 }}><MenuItem value="">All accounts</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="temporary_ban">Temporary ban</MenuItem><MenuItem value="permanent_ban">Permanent ban</MenuItem><MenuItem value="deletion_pending">Deletion in progress</MenuItem><MenuItem value="deleted">Deleted</MenuItem></TextField>
+          <TextField size="small" placeholder="Search name, email, or user ID" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} InputProps={{ startAdornment: <SearchRoundedIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }}/> }} sx={{ flex: 1, minWidth: 0 }}/>
+          <TextField select size="small" fullWidth label="Account status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} sx={{ minWidth: { sm: 200 }, maxWidth: { sm: 260 } }}><MenuItem value="">All accounts</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="temporary_ban">Temporary ban</MenuItem><MenuItem value="permanent_ban">Permanent ban</MenuItem><MenuItem value="deletion_pending">Deletion in progress</MenuItem><MenuItem value="deleted">Deleted</MenuItem></TextField>
         </> : section === 4 ? <><Typography variant="h6" fontWeight={750} sx={{ flex: 1 }}>Sent official messages</Typography><Button onClick={loadRows} disabled={loading}>Refresh</Button></> : <><Typography variant="h6" fontWeight={750} sx={{ flex: 1 }}>{sections[section]}</Typography><TextField select size="small" label="Status" value={inboxStatus} onChange={(e) => { setInboxStatus(e.target.value); setPage(1); }} sx={{ minWidth: 180 }}><MenuItem value="">All statuses</MenuItem><MenuItem value="pending">Pending</MenuItem><MenuItem value="under_review">Under review</MenuItem><MenuItem value="approved">Approved</MenuItem><MenuItem value="rejected">Rejected</MenuItem><MenuItem value="resolved">Resolved</MenuItem></TextField></>}
       </Stack>
       {section === 0 && <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" gap={1} sx={{ px: 2, pb: 1.5 }}>

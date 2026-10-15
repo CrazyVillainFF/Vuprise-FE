@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Tooltip, Typography } from '@mui/material';
 import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
-import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined';
 import { connectionAPI } from '../services/api';
@@ -133,9 +132,9 @@ const ConnectionButton = ({
   if (status === 'pending_sent') {
     return (
       <Stack spacing={0.75} sx={{ minWidth: 0 }}>
-        <Tooltip title="Click to cancel pending invitation">
-          <Button size={size} variant="outlined" color="inherit" onClick={handleRejectOrRemove} startIcon={<HourglassEmptyRoundedIcon />} sx={{ borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'text.primary', color: 'text.primary', bgcolor: 'action.hover' }, ...sx }}>
-            Pending
+        <Tooltip title="You connected with this member. Click to remove the connection.">
+          <Button size={size} variant="outlined" color="primary" onClick={handleRejectOrRemove} startIcon={<CheckRoundedIcon />} sx={{ borderColor: 'primary.main', ...sx }}>
+            Connected
           </Button>
         </Tooltip>
         {actionError && <Alert severity="error" sx={{ maxWidth: 320 }}>{actionError}</Alert>}

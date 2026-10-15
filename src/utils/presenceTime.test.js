@@ -5,7 +5,7 @@ import { formatLastSeen } from './presenceTime.js';
 const now = Date.parse('2026-10-13T12:00:00.000Z');
 
 test('last seen formatter displays relative minute and hour states', () => {
-  assert.equal(formatLastSeen(new Date(now - 20_000), now), 'Active just now');
+  assert.equal(formatLastSeen(new Date(now - 20_000), now), 'Last seen just now');
   assert.equal(formatLastSeen(new Date(now - 2 * 60_000), now), 'Last seen 2 minutes ago');
   assert.equal(formatLastSeen(new Date(now - 2 * 60 * 60_000), now), 'Last seen 2 hours ago');
 });
