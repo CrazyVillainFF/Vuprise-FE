@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supportAPI } from '../services/api';
 import EvidencePhotoPicker from '../components/EvidencePhotoPicker';
 
@@ -12,12 +12,15 @@ const requestTypes = [
 ];
 
 export default function SupportRequestPage() {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const requestedType = params.get('type');
-  const [form, setForm] = useState({ type: requestTypes.some(([value]) => value === requestedType) ? requestedType : 'general_help', email: '', userId: '', subject: '', message: '', category: '', reportedUser: '', reportedPost: '', website: '' });
+  // Appeal links from the ban notice prefill the email so the request can be
+  // matched to the banned account (the server still verifies the match).
+  const requestedEmail = (params.get('email') || '').trim().slice(0, 254);
+  const [form, setForm] = useState({ type: requestTypes.some(([value]) => value === requestedType) ? requestedType : 'general_help', email: requestedEmail, userId: '', subject: '', message: '', category: '', reportedUser: '', reportedPost: '', website: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
   const [evidenceFiles, setEvidenceFiles] = useState([]);
   const change = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const submit = async (event) => {
@@ -26,7 +29,10 @@ export default function SupportRequestPage() {
       const payload = new FormData();
       Object.entries(form).forEach(([key, value]) => payload.append(key, value));
       evidenceFiles.forEach((file) => payload.append('evidence', file));
-      await supportAPI.submit(payload); setSent(true);
+      // Only after the server confirms the request do we move to the
+      // confirmation page; failures keep the form and its data in place.
+      await supportAPI.submit(payload);
+      navigate('/thank-you');
     }
     catch (e) { setError(e.message || 'Could not send your request. Please try again later.'); }
     finally { setBusy(false); }
@@ -36,7 +42,7 @@ export default function SupportRequestPage() {
       <Typography variant="overline" color="primary.main" fontWeight={800}>VUprise SUPPORT</Typography>
       <Typography variant="h4" fontWeight={850} sx={{ mb: 1 }}>Send a request</Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>This form is available even if you can’t sign in. Include the email associated with the account so we can review it.</Typography>
-      {sent ? <Stack gap={2}><Alert severity="success">Your request was received. Keep a copy of your request details; support will follow up if contact information is available.</Alert><Button component={Link} to="/signin" variant="contained">Return to sign in</Button></Stack> : <form onSubmit={submit}><Stack gap={2}>
+      <form onSubmit={submit}><Stack gap={2}>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField select label="Request type" value={form.type} onChange={change('type')} required>{requestTypes.map(([value, label]) => <MenuItem value={value} key={value}>{label}</MenuItem>)}</TextField>
         <TextField type="email" label="Email address" value={form.email} onChange={change('email')} required inputProps={{ maxLength: 254 }}/>
@@ -48,7 +54,7 @@ export default function SupportRequestPage() {
         <TextField label="Website" value={form.website} onChange={change('website')} autoComplete="off" tabIndex={-1} sx={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} inputProps={{ 'aria-hidden': true }}/>
         <Typography variant="caption" color="text.secondary">Submissions are rate-limited. Deleted accounts cannot be restored through this form.</Typography>
         <Stack direction="row" justifyContent="flex-end" gap={1}><Button component={Link} to="/signin">Cancel</Button><Button type="submit" variant="contained" disabled={busy}>{busy ? 'Sending…' : 'Send request'}</Button></Stack>
-      </Stack></form>}
+      </Stack></form>
     </Paper>
   </Box>;
 }

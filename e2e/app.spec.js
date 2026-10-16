@@ -3,10 +3,14 @@ import AxeBuilder from '@axe-core/playwright';
 
 const publicRoutes = [
   ['/', /Make the right connections/i],
+  ['/faq', /Frequently asked questions/i],
+  ['/privacy', /Privacy Policy/i],
   ['/signin', /Welcome back to Vuprise/i],
   ['/signup', /Join Vuprise/i],
   ['/forgot-password', /Reset your password/i],
+  ['/support/request', /Send a request/i],
   ['/satisfied-games', /Satisfied Games/i],
+  ['/thank-you', /your request was received/i],
 ];
 
 test('public routes render without uncaught errors or failed local assets', async ({ page }) => {
@@ -211,6 +215,116 @@ test('isolated seeded account can sign in and protected pages survive direct loa
   }
 });
 
+test('a public account receives and replies to messages from non-connected members', async ({ page }) => {
+  test.skip(test.info().project.name !== 'edge', 'Run once against the shared isolated E2E database.');
+  test.setTimeout(240_000);
+
+  const signIn = async (email) => {
+    await page.goto('/signin');
+    // ProtectedRoute stores the previous location in history state; a reload
+    // would send the next sign-in back there, so clear it for a fresh start.
+    await page.evaluate(() => window.history.replaceState({}, '', '/signin'));
+    await page.getByRole('textbox', { name: 'Email Address' }).fill(email);
+    await page.getByRole('textbox', { name: 'Password' }).fill('password123');
+    await page.getByRole('button', { name: 'Sign In' }).click();
+    await expect(page).not.toHaveURL(/\/signin$/);
+    // Sign-in shows a 5s welcome overlay; the location dialog only mounts
+    // after it clears and blocks everything behind it, so wait it out first.
+    const welcome = page.getByRole('status');
+    await expect(welcome).toBeVisible({ timeout: 4000 }).catch(() => {});
+    await expect(welcome).toBeHidden({ timeout: 9000 }).catch(() => {});
+    const onboarding = page.getByRole('dialog', { name: 'Complete Your Profile' });
+    await page.waitForTimeout(400);
+    if (await onboarding.isVisible()) {
+      await onboarding.getByRole('combobox', { name: 'Country' }).fill('India');
+      await page.getByRole('option', { name: 'India', exact: true }).click();
+      await onboarding.getByRole('combobox', { name: 'State / Province / Region' }).fill('Tamil Nadu');
+      await page.getByRole('option', { name: 'Tamil Nadu', exact: true }).click();
+      await onboarding.getByRole('button', { name: 'Save & Continue' }).click();
+      await expect(onboarding).toBeHidden();
+    }
+  };
+  const signOut = async () => {
+    await page.getByRole('button', { name: 'Open profile menu' }).click();
+    await page.getByRole('menuitem', { name: 'Sign Out' }).click();
+    await expect(page).toHaveURL(/\/signin$/);
+  };
+  const setPrivateAccount = async (on) => {
+    await page.goto('/settings');
+    const privateSwitch = page.getByRole('switch', { name: 'Private Account' });
+    await expect(privateSwitch).toBeVisible();
+    if ((await privateSwitch.getAttribute('aria-checked')) !== String(on)) {
+      await privateSwitch.click();
+      await expect(privateSwitch).toHaveAttribute('aria-checked', String(on));
+    }
+  };
+
+  // Recipient Devon (Private Account OFF) is not connected to sender Anya.
+  await signIn('devon@nexora.io');
+  await setPrivateAccount(false);
+  await signOut();
+
+  await signIn('anya@nexora.io');
+  await page.goto('/people');
+  await page.getByPlaceholder('Search by name, company, title, or skill...').fill('Devon');
+  await page.getByText('Devon Thorne').first().click();
+  await expect(page).toHaveURL(/\/profile\//);
+  const devonId = page.url().split('/profile/')[1];
+  await page.getByRole('button', { name: 'Message' }).click();
+  await expect(page).toHaveURL(new RegExp(`/messages\\?contact=${devonId}`));
+
+  const uniqueMessage = `Hello from a non-connected member ${Date.now()}`;
+  const composer = page.getByRole('textbox', { name: 'Message' });
+  await expect(composer).toBeVisible();
+  await composer.fill(uniqueMessage);
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText(uniqueMessage)).toBeVisible();
+  await expect(page.getByText(/Sending/)).toHaveCount(0);
+
+  // The sender may itself be private; the public recipient must still receive
+  // and reply to a conversation the sender started.
+  await setPrivateAccount(true);
+  await signOut();
+
+  await signIn('devon@nexora.io');
+  await page.goto('/messages');
+  const chatWithSender = page.getByRole('button', { name: 'Open chat with Dr. Anya Sharma' });
+  await expect(chatWithSender).toBeVisible();
+  await chatWithSender.click();
+  await expect(page.getByText(uniqueMessage)).toBeVisible();
+
+  const reply = `Thanks for reaching out ${Date.now()}`;
+  await page.getByRole('textbox', { name: 'Message' }).fill(reply);
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText(reply)).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Open chat with Dr. Anya Sharma' }).click();
+  await expect(page.getByText(uniqueMessage)).toBeVisible();
+  await expect(page.getByText(reply)).toBeVisible();
+
+  await signOut();
+  await signIn('devon@nexora.io');
+  await page.goto('/messages');
+  await expect(page.getByRole('button', { name: 'Open chat with Dr. Anya Sharma' })).toBeVisible();
+
+  // With Private Account ON, a different non-connected member cannot start a
+  // brand-new conversation.
+  await setPrivateAccount(true);
+  await signOut();
+  await signIn('marcus@nexora.io');
+  await page.goto(`/messages?contact=${devonId}`);
+  await expect(page.getByText(/requires a connection before messaging/i)).toBeVisible();
+
+  // Restore the shared test accounts to their default privacy state.
+  await signOut();
+  await signIn('devon@nexora.io');
+  await setPrivateAccount(false);
+  await signOut();
+  await signIn('anya@nexora.io');
+  await setPrivateAccount(false);
+});
+
 test('successful registration shows the centered welcome moment for 4.5 seconds', async ({ page }) => {
   test.skip(test.info().project.name !== 'edge', 'Run once against the shared isolated E2E database.');
   test.setTimeout(90_000);
@@ -235,8 +349,78 @@ test('successful registration shows the centered welcome moment for 4.5 seconds'
   await expect(welcome).toBeHidden({ timeout: 6000 });
 });
 
+test('public pages expose their own titles, canonicals, and robots directives', async ({ page }) => {
+  await page.goto('/faq');
+  await expect(page).toHaveTitle(/FAQ \| Vuprise/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/faq$/);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /index, follow/);
+
+  await page.goto('/signin');
+  await expect(page).toHaveTitle(/Sign in \| Vuprise/);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+
+  await page.goto('/this-route-does-not-exist');
+  await expect(page).toHaveTitle(/Page not found \| Vuprise/);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+});
+
+test('footer links reach the FAQ, and its structured data matches what visitors see', async ({ page }) => {
+  await page.goto('/');
+  // The privacy notice sits above the footer on first visit; dismiss it the
+  // way a visitor would before using the footer links.
+  const privacyNotice = page.getByRole('region', { name: 'Privacy notice' });
+  if (await privacyNotice.isVisible()) {
+    await privacyNotice.getByRole('button', { name: 'Reject non-essential' }).click();
+  }
+  const footer = page.locator('footer');
+  await expect(footer.getByRole('link', { name: 'FAQ' })).toBeVisible();
+  await footer.getByRole('link', { name: 'FAQ' }).click();
+  await expect(page).toHaveURL(/\/faq$/);
+  await expect(page.getByRole('heading', { name: 'Frequently asked questions' })).toBeVisible();
+
+  const structured = await page.locator('#faq-structured-data').textContent();
+  const parsed = JSON.parse(structured);
+  expect(parsed['@type']).toBe('FAQPage');
+  expect(parsed.mainEntity.length).toBeGreaterThan(4);
+  for (const entry of parsed.mainEntity) {
+    expect(entry['@type']).toBe('Question');
+    expect(typeof entry.acceptedAnswer.text).toBe('string');
+  }
+  await expect(page.getByText(parsed.mainEntity[0].name)).toBeVisible();
+});
+
+test('privacy banner stores the choice and analytics never loads without consent', async ({ page }) => {
+  await page.goto('/');
+  const banner = page.getByRole('region', { name: 'Privacy notice' });
+  await expect(banner).toBeVisible();
+  await expect(page.locator('script[src*="googletagmanager"]')).toHaveCount(0);
+
+  await banner.getByRole('button', { name: 'Reject non-essential' }).click();
+  await expect(banner).toBeHidden();
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('vuprise_consent_v1')));
+  expect(stored.analytics).toBe(false);
+  await expect(page.locator('script[src*="googletagmanager"]')).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Privacy notice' })).toHaveCount(0);
+});
+
+test('share-card asset and social metadata are served', async ({ page, request }) => {
+  const response = await request.get('/share-card.png');
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()['content-type']).toContain('image/png');
+
+  await page.goto('/');
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /share-card\.png$/);
+  await expect(page.locator('meta[property="og:image:width"]')).toHaveAttribute('content', '1200');
+  await expect(page.locator('meta[property="og:image:height"]')).toHaveAttribute('content', '630');
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', /share-card\.png$/);
+});
+
 test('landing and sign-up pages have no serious automated accessibility violations', async ({ page }) => {
-  for (const route of ['/', '/signup']) {
+  for (const route of ['/', '/signup', '/faq', '/privacy']) {
     await page.goto(route);
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     const serious = results.violations.filter(({ impact }) => ['critical', 'serious'].includes(impact));
@@ -245,7 +429,7 @@ test('landing and sign-up pages have no serious automated accessibility violatio
 });
 
 test('public page layouts have no horizontal overflow at target viewport widths', async ({ page }) => {
-  for (const route of ['/', '/signin', '/signup', '/satisfied-games']) {
+  for (const route of ['/', '/signin', '/signup', '/satisfied-games', '/faq', '/privacy', '/thank-you']) {
     await page.goto(route);
     for (const width of [320, 375, 390, 768, 1024, 1366, 1920]) {
       await page.setViewportSize({ width, height: width < 500 ? 812 : 900 });

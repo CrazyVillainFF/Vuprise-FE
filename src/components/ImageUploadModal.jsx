@@ -84,7 +84,7 @@ const ImageUploadModal = ({
         <Typography variant="h6" fontWeight={700}>
           {title}
         </Typography>
-        <IconButton onClick={onClose} disabled={uploading} size="small">
+        <IconButton onClick={onClose} disabled={uploading} size="small" aria-label="Close image dialog">
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
@@ -140,7 +140,7 @@ const ImageUploadModal = ({
             <Box
               component="img"
               src={preview}
-              alt="Preview"
+              alt="Preview of the selected image"
               sx={{
                 width: '100%',
                 maxHeight: 280,
@@ -152,6 +152,7 @@ const ImageUploadModal = ({
             <IconButton
               onClick={handleReset}
               disabled={uploading}
+              aria-label="Remove selected image"
               sx={{
                 position: 'absolute',
                 top: 10,

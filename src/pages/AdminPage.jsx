@@ -1,17 +1,24 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Avatar, Box, Button, ButtonBase, Checkbox, Chip, Dialog, DialogActions, DialogContent,
-  DialogTitle, Divider, FormControlLabel, MenuItem, Pagination, Paper, Stack, Tab, Tabs, Table, TableBody,
+  DialogTitle, Divider, FormControlLabel, LinearProgress, MenuItem, Pagination, Paper, Stack, Tab, Tabs, Table, TableBody,
   TableCell, TableHead, TableRow, TextField, Typography
 } from '@mui/material';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import StatusMark from '../components/reactbits/StatusMark';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
+import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
+import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
+import MessageImage from '../components/MessageImage';
 import { adminAPI } from '../services/api';
 
-const sections = ['Users', 'Requests', 'Reports', 'Help', 'Messages'];
+const formatAttachmentSize = (bytes) => (bytes >= 1024 * 1024
+  ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+const sections = ['Users', 'Requests', 'Reports', 'Help', 'Messages', 'Email users'];
 const statusLabels = { active: 'Active', temporary_ban: 'Temporary ban', permanent_ban: 'Permanent ban', deletion_pending: 'Deletion in progress', deleted: 'Deleted' };
 
 function Stat({ label, value }) {
@@ -60,6 +67,7 @@ export default function AdminPage() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
@@ -84,6 +92,26 @@ export default function AdminPage() {
   const [selectedBroadcast, setSelectedBroadcast] = useState(null);
   const [editingBroadcast, setEditingBroadcast] = useState(false);
   const [broadcastEditDraft, setBroadcastEditDraft] = useState('');
+  const [broadcastAttachment, setBroadcastAttachment] = useState(null);
+  const [broadcastAttachmentPreview, setBroadcastAttachmentPreview] = useState('');
+  const [broadcastUploadProgress, setBroadcastUploadProgress] = useState(null);
+  const [broadcastError, setBroadcastError] = useState('');
+  const broadcastImageInputRef = useRef(null);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailStep, setEmailStep] = useState('compose');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailSendSeparately, setEmailSendSeparately] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSummary, setEmailSummary] = useState(null);
+
+  useEffect(() => {
+    if (!broadcastAttachment) { setBroadcastAttachmentPreview(''); return undefined; }
+    const previewUrl = URL.createObjectURL(broadcastAttachment);
+    setBroadcastAttachmentPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [broadcastAttachment]);
 
   const loadOverview = useCallback(async () => {
     try { setOverview((await adminAPI.overview()).data.overview); } catch (e) { setError(e.message); }
@@ -92,9 +120,10 @@ export default function AdminPage() {
   const loadRows = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      if (section === 0) {
-        const response = await adminAPI.users({ page, limit: 20, search, status: status || undefined });
+      if (section === 0 || section === 5) {
+        const response = await adminAPI.users({ page, limit: 20, search, status: status || undefined, verifiedOnly: verifiedOnly || undefined });
         setRows(response.data.users); setPages(Math.max(1, response.data.pagination.pages));
+        setTotal(Number(response.data.pagination.total) || 0);
       } else if (section === 4) {
         const response = await adminAPI.broadcastMessages({ page, limit: 20 });
         setRows(response.data.messages); setPages(Math.max(1, response.data.pagination.pages));
@@ -105,10 +134,10 @@ export default function AdminPage() {
       }
     } catch (e) { setError(e.message || 'Could not load this section.'); }
     finally { setLoading(false); }
-  }, [section, page, search, status, inboxStatus]);
+  }, [section, page, search, status, inboxStatus, verifiedOnly]);
 
   useEffect(() => { loadOverview(); }, [loadOverview]);
-  useEffect(() => { const timer = window.setTimeout(loadRows, section === 0 ? 250 : 0); return () => window.clearTimeout(timer); }, [loadRows, section]);
+  useEffect(() => { const timer = window.setTimeout(loadRows, section === 0 || section === 5 ? 250 : 0); return () => window.clearTimeout(timer); }, [loadRows, section]);
 
   const openAction = (user, name) => { setSelected(user); setAction(name); setReason(''); setExpiresAt(''); setWarningError(''); };
   const executeAction = async () => {
@@ -166,20 +195,105 @@ export default function AdminPage() {
     const visibleIds = rows.map((user) => String(user._id));
     return allVisibleSelected ? current.filter((id) => !visibleIds.includes(id)) : [...new Set([...current, ...visibleIds])];
   });
+  const resetBroadcastComposer = () => {
+    setBroadcastOpen(false); setBroadcastDraft(''); setBroadcastAttachment(null);
+    setBroadcastUploadProgress(null); setBroadcastError('');
+    if (broadcastImageInputRef.current) broadcastImageInputRef.current.value = '';
+  };
+
+  const handleBroadcastImageSelect = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setBroadcastError('Choose a JPG, PNG, or WebP image. GIF and other file types are not supported.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setBroadcastError('Attachments must be 5 MB or smaller.');
+      return;
+    }
+    setBroadcastError('');
+    setBroadcastAttachment(file);
+  };
+
+  const removeBroadcastAttachment = () => {
+    setBroadcastAttachment(null);
+    if (broadcastImageInputRef.current) broadcastImageInputRef.current.value = '';
+  };
+
   const sendBroadcast = async () => {
-    if (!broadcastDraft.trim()) return;
-    setSaving(true); setError('');
+    const text = broadcastDraft.trim();
+    const hasAttachment = Boolean(broadcastAttachment);
+    if ((!text && !hasAttachment) || saving) return;
+    setSaving(true); setError(''); setBroadcastError('');
+    setBroadcastUploadProgress(hasAttachment ? 0 : null);
     try {
-      const response = await adminAPI.broadcastMessage({
-        text: broadcastDraft.trim(),
-        selectAll: selectAllUsers,
-        recipientIds: selectAllUsers ? [] : selectedUserIds,
-      });
+      let payload;
+      if (hasAttachment) {
+        payload = new FormData();
+        payload.append('text', text);
+        payload.append('selectAll', String(selectAllUsers));
+        payload.append('verifiedOnly', String(verifiedOnly));
+        if (!selectAllUsers) selectedUserIds.forEach((id) => payload.append('recipientIds', id));
+        payload.append('image', broadcastAttachment);
+      } else {
+        payload = { text, selectAll: selectAllUsers, verifiedOnly, recipientIds: selectAllUsers ? [] : selectedUserIds };
+      }
+      const response = await adminAPI.broadcastMessage(payload, hasAttachment ? {
+        onUploadProgress: (progressEvent) => {
+          const total = progressEvent.total || progressEvent.event?.total;
+          if (total) setBroadcastUploadProgress(Math.min(100, Math.round((progressEvent.loaded * 100) / total)));
+        },
+      } : {});
       setNotice(response.data.message || 'Official message sent.');
-      setBroadcastOpen(false); setBroadcastDraft(''); setSelectedUserIds([]); setSelectAllUsers(false);
+      resetBroadcastComposer();
+      setSelectedUserIds([]); setSelectAllUsers(false);
       if (section === 4) await loadRows();
-    } catch (e) { setError(e.message || 'Could not send the official message.'); }
-    finally { setSaving(false); }
+    } catch (e) {
+      const message = e.message || 'Could not send the official message.';
+      setBroadcastError(message);
+      setError(message);
+    }
+    finally { setSaving(false); setBroadcastUploadProgress(null); }
+  };
+
+  const toggleVerifiedOnly = (checked) => {
+    setVerifiedOnly(checked);
+    setSelectedUserIds([]);
+    setPage(1);
+  };
+
+  const openEmailComposer = () => {
+    setEmailStep('compose'); setEmailSubject(''); setEmailMessage('');
+    setEmailSendSeparately(false); setEmailError(''); setEmailSummary(null);
+    setEmailOpen(true);
+  };
+
+  const closeEmailComposer = () => {
+    if (saving) return;
+    setEmailOpen(false); setEmailStep('compose'); setEmailError(''); setEmailSummary(null);
+  };
+
+  const sendEmail = async () => {
+    const subject = emailSubject.trim();
+    const message = emailMessage.trim();
+    if (!subject || !message || saving) return;
+    setSaving(true); setEmailError(''); setEmailStep('sending');
+    try {
+      const response = await adminAPI.emailUsers({
+        subject, message, selectAll: selectAllUsers, verifiedOnly,
+        recipientIds: selectAllUsers ? [] : selectedUserIds,
+        sendSeparately: emailSendSeparately,
+      });
+      setEmailSummary(response.data.summary || null);
+      setEmailStep('done');
+      setNotice(response.data.message || 'Bulk email finished.');
+      setSelectedUserIds([]); setSelectAllUsers(false);
+    } catch (e) {
+      setEmailError(e.message || 'Could not send the bulk email.');
+      setEmailStep('compose');
+    } finally { setSaving(false); }
   };
 
   const openDetail = async (user) => {
@@ -208,11 +322,11 @@ export default function AdminPage() {
   };
 
   const saveBroadcastEdit = async () => {
-    if (!selectedBroadcast || !broadcastEditDraft.trim()) return;
+    if (!selectedBroadcast || (!broadcastEditDraft.trim() && !selectedBroadcast.imageUrl)) return;
     setSaving(true); setError('');
     try {
       const response = await adminAPI.updateBroadcastMessage(selectedBroadcast._id, broadcastEditDraft.trim());
-      const text = response.data.text || broadcastEditDraft.trim();
+      const text = response.data.text ?? broadcastEditDraft.trim();
       setRows((current) => current.map((item) => String(item._id) === String(selectedBroadcast._id) ? { ...item, text } : item));
       setSelectedBroadcast((current) => current ? { ...current, text } : current);
       setEditingBroadcast(false);
@@ -258,19 +372,22 @@ export default function AdminPage() {
       </Tabs>
       <Divider/>
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.25} sx={{ p: 2 }}>
-        {section === 0 ? <>
+        {(section === 0 || section === 5) ? <>
           <TextField size="small" placeholder="Search name, email, or user ID" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} InputProps={{ startAdornment: <SearchRoundedIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }}/> }} sx={{ flex: 1, minWidth: 0 }}/>
           <TextField select size="small" fullWidth label="Account status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} sx={{ minWidth: { sm: 200 }, maxWidth: { sm: 260 } }}><MenuItem value="">All accounts</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="temporary_ban">Temporary ban</MenuItem><MenuItem value="permanent_ban">Permanent ban</MenuItem><MenuItem value="deletion_pending">Deletion in progress</MenuItem><MenuItem value="deleted">Deleted</MenuItem></TextField>
         </> : section === 4 ? <><Typography variant="h6" fontWeight={750} sx={{ flex: 1 }}>Sent official messages</Typography><Button onClick={loadRows} disabled={loading}>Refresh</Button></> : <><Typography variant="h6" fontWeight={750} sx={{ flex: 1 }}>{sections[section]}</Typography><TextField select size="small" label="Status" value={inboxStatus} onChange={(e) => { setInboxStatus(e.target.value); setPage(1); }} sx={{ minWidth: 180 }}><MenuItem value="">All statuses</MenuItem><MenuItem value="pending">Pending</MenuItem><MenuItem value="under_review">Under review</MenuItem><MenuItem value="approved">Approved</MenuItem><MenuItem value="rejected">Rejected</MenuItem><MenuItem value="resolved">Resolved</MenuItem></TextField></>}
       </Stack>
-      {section === 0 && <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" gap={1} sx={{ px: 2, pb: 1.5 }}>
+      {(section === 0 || section === 5) && <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" gap={1} sx={{ px: 2, pb: 1.5 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={{ sm: 1.5 }}>
           <FormControlLabel control={<Checkbox checked={selectAllUsers} onChange={(event) => { setSelectAllUsers(event.target.checked); if (event.target.checked) setSelectedUserIds([]); }}/>} label="Select all registered users" />
-          <Typography variant="body2" color="text.secondary">{selectAllUsers ? 'All eligible accounts except your admin account' : `${selectedUserIds.length} selected across pages`}</Typography>
+          <FormControlLabel control={<Checkbox checked={verifiedOnly} onChange={(event) => toggleVerifiedOnly(event.target.checked)} inputProps={{ 'aria-label': 'Select verified users only' }}/>} label="Verified users only" />
+          <Typography variant="body2" color="text.secondary">{selectAllUsers ? `All eligible${verifiedOnly ? ' verified' : ''} accounts except your admin account${verifiedOnly ? ` · ${total} match this filter` : ''}` : `${selectedUserIds.length} selected across pages${verifiedOnly ? ` · ${total} verified user${total === 1 ? '' : 's'} match` : ''}`}</Typography>
         </Stack>
-        <Button variant="contained" startIcon={<ChatBubbleOutlineRoundedIcon/>} disabled={!selectAllUsers && selectedUserIds.length === 0} onClick={() => setBroadcastOpen(true)}>Message users</Button>
+        {section === 5
+          ? <Button variant="contained" startIcon={<MailOutlineRoundedIcon/>} disabled={!selectAllUsers && selectedUserIds.length === 0} onClick={openEmailComposer}>Email users</Button>
+          : <Button variant="contained" startIcon={<ChatBubbleOutlineRoundedIcon/>} disabled={!selectAllUsers && selectedUserIds.length === 0} onClick={() => setBroadcastOpen(true)}>Message users</Button>}
       </Stack>}
-      {loading ? <Box sx={{ py: 9, textAlign: 'center', color: 'primary.main' }}><StatusMark status="running" label={`Loading ${sections[section].toLowerCase()}…`} size={22}/></Box> : rows.length === 0 ? <Box sx={{ py: 8, textAlign: 'center' }}><Typography variant="h6" fontWeight={750}>{section === 4 ? 'No official messages sent yet' : 'Nothing to review'}</Typography><Typography color="text.secondary">{section === 4 ? 'Messages sent from the Users tab will appear here.' : 'New items will appear here when submitted.'}</Typography></Box> : section === 0 ? <>
+      {loading ? <Box sx={{ py: 9, textAlign: 'center', color: 'primary.main' }}><StatusMark status="running" label={`Loading ${sections[section].toLowerCase()}…`} size={22}/></Box> : rows.length === 0 ? <Box sx={{ py: 8, textAlign: 'center' }}><Typography variant="h6" fontWeight={750}>{section === 4 ? 'No official messages sent yet' : (section === 0 || section === 5) ? 'No users match this view' : 'Nothing to review'}</Typography><Typography color="text.secondary">{section === 4 ? 'Messages sent from the Users tab will appear here.' : (section === 0 || section === 5) ? 'Adjust the search, status, or verified filter.' : 'New items will appear here when submitted.'}</Typography></Box> : (section === 0 || section === 5) ? <>
         <Box sx={{ display: { xs: 'block', md: 'none' }, px: 1.25, pb: 1.25 }}><Stack spacing={1}>{rows.map((user) => <Paper key={user._id} variant="outlined" sx={{ p: 1.25, minWidth: 0, overflowWrap: 'anywhere' }}><Stack direction="row" gap={1} alignItems="center"><Checkbox size="small" checked={selectAllUsers || selectedUserIds.includes(String(user._id))} disabled={selectAllUsers} onChange={() => toggleUserSelection(String(user._id))} inputProps={{ 'aria-label': `Select ${user.name}` }}/><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0, flex: 1 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} sx={{ ml: 0.5 }}/>}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{user.email}</Typography></Box><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'} sx={{ maxWidth: '45%' }}/></Stack><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>ID · {user._id}</Typography><Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Joined {new Date(user.createdAt).toLocaleDateString()}</Typography><Divider sx={{ my: 0.75 }}/>{renderUserActions(user)}</Paper>)}</Stack></Box>
         <Box sx={{ display: { xs: 'none', md: 'block' }, maxWidth: '100%', overflowX: 'auto', overscrollBehaviorX: 'contain' }}><Table size="small" sx={{ minWidth: 820 }}><TableHead><TableRow><TableCell padding="checkbox"><Checkbox size="small" checked={allVisibleSelected} indeterminate={!selectAllUsers && selectedUserIds.some((id) => rows.some((user) => String(user._id) === id)) && !allVisibleSelected} disabled={selectAllUsers} onChange={toggleVisibleSelection} inputProps={{ 'aria-label': 'Select current page of users' }}/></TableCell><TableCell>User</TableCell><TableCell>User ID</TableCell><TableCell>Status</TableCell><TableCell>Joined</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead><TableBody>{rows.map((user) => <TableRow key={user._id} hover><TableCell padding="checkbox"><Checkbox size="small" checked={selectAllUsers || selectedUserIds.includes(String(user._id))} disabled={selectAllUsers} onChange={() => toggleUserSelection(String(user._id))} inputProps={{ 'aria-label': `Select ${user.name}` }}/></TableCell><TableCell><Stack direction="row" alignItems="center" gap={1.25}><Avatar src={user.profilePicture}>{user.name?.[0]}</Avatar><Box sx={{ minWidth: 0 }}><Typography fontWeight={750}>{user.name}{user.isVerifiedAccount && <VerifiedAccountBadge color={user.verificationBadgeColor} size={16} sx={{ ml: 0.5 }}/>}</Typography><Typography variant="body2" color="text.secondary">{user.email}</Typography></Box></Stack></TableCell><TableCell><Typography variant="caption">{user._id}</Typography></TableCell><TableCell><Chip size="small" color={user.moderationStatus === 'active' ? 'success' : user.moderationStatus === 'deleted' ? 'default' : 'error'} label={statusLabels[user.moderationStatus] || 'Active'}/>{user.moderationExpiresAt && <Typography display="block" variant="caption">until {new Date(user.moderationExpiresAt).toLocaleString()}</Typography>}</TableCell><TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell><TableCell align="right">{renderUserActions(user)}</TableCell></TableRow>)}</TableBody></Table></Box>
       </> : section === 4 ? <BroadcastHistory messages={rows} onOpenRecipient={openBroadcastMessage}/> : <Box sx={{ px: { xs: 1.25, sm: 2 }, minWidth: 0, maxWidth: '100%' }}><Stack divider={<Divider/>}>{rows.map((item) => <Stack key={item._id} direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} gap={1.5} sx={{ py: 1.5, minWidth: 0 }}><Box sx={{ flex: 1, minWidth: 0 }}><Stack direction="row" gap={1} alignItems="center"><Chip size="small" label={item.status.replace('_', ' ')}/><Typography fontWeight={750} sx={{ overflowWrap: 'anywhere' }}>{item.subject}</Typography></Stack><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.email} · {item.type.replaceAll('_', ' ')} · {new Date(item.createdAt).toLocaleString()}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{item.message}</Typography></Box><Button variant="outlined" onClick={() => openInbox(item)}>Review</Button></Stack>)}</Stack></Box>}
@@ -282,12 +399,83 @@ export default function AdminPage() {
       <DialogContent dividers>
         <Stack gap={2}>
           <Alert severity="info">Recipients receive separate private messages from <b>Vuprise</b> with its verified badge. Replies are not enabled for official messages.</Alert>
-          <Typography variant="body2" color="text.secondary">Sending to {selectAllUsers ? 'all eligible accounts except your admin account' : `${selectedUserIds.length} selected account${selectedUserIds.length === 1 ? '' : 's'}`}.</Typography>
-          <TextField label="Message" value={broadcastDraft} onChange={(event) => setBroadcastDraft(event.target.value.slice(0, 5000))} multiline minRows={4} inputProps={{ maxLength: 5000 }} required autoFocus />
-          <Typography variant="caption" color="text.secondary" align="right">{broadcastDraft.length}/5000</Typography>
+          <Typography variant="body2" color="text.secondary">Sending to {selectAllUsers ? `all eligible${verifiedOnly ? ' verified' : ''} accounts except your admin account` : `${selectedUserIds.length} selected account${selectedUserIds.length === 1 ? '' : 's'}`}{!selectAllUsers && verifiedOnly ? ' (verified only)' : ''}.</Typography>
+          {broadcastError && <Alert severity="error" onClose={() => setBroadcastError('')}>{broadcastError}</Alert>}
+          <TextField label="Message" value={broadcastDraft} onChange={(event) => setBroadcastDraft(event.target.value.slice(0, 5000))} multiline minRows={4} inputProps={{ maxLength: 5000 }} disabled={saving} autoFocus helperText={`${broadcastDraft.length}/5000${broadcastAttachment ? ' · text may be empty when an image is attached' : ''}`}/>
+          <input ref={broadcastImageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={handleBroadcastImageSelect} aria-label="Attach an image to the official message"/>
+          {broadcastAttachment ? <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, minWidth: 0 }}>
+            <Box component="img" src={broadcastAttachmentPreview} alt="Selected attachment preview" sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 1.5, flexShrink: 0, bgcolor: 'action.hover' }}/>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography variant="body2" fontWeight={700} noWrap title={broadcastAttachment.name}>{broadcastAttachment.name}</Typography>
+              <Typography variant="caption" color="text.secondary">{formatAttachmentSize(broadcastAttachment.size)} · JPG, PNG, or WebP up to 5 MB</Typography>
+            </Box>
+            <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+              <Button size="small" onClick={() => broadcastImageInputRef.current?.click()} disabled={saving}>Replace</Button>
+              <Button size="small" color="error" onClick={removeBroadcastAttachment} disabled={saving}>Remove</Button>
+            </Stack>
+          </Stack> : <Button variant="outlined" startIcon={<ImageRoundedIcon/>} onClick={() => broadcastImageInputRef.current?.click()} disabled={saving} sx={{ alignSelf: 'flex-start' }}>Attach image</Button>}
         </Stack>
       </DialogContent>
-      <DialogActions><Button onClick={() => setBroadcastOpen(false)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={sendBroadcast} disabled={saving || !broadcastDraft.trim()}>{saving ? 'Sending…' : 'Send official message'}</Button></DialogActions>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+        {saving && broadcastAttachment && broadcastUploadProgress !== null && <Box sx={{ flex: 1, minWidth: 160, mr: 2, textAlign: 'left' }}>
+          <LinearProgress variant="determinate" value={broadcastUploadProgress} sx={{ borderRadius: 1 }}/>
+          <Typography variant="caption" color="text.secondary">{broadcastUploadProgress < 100 ? `Uploading attachment… ${broadcastUploadProgress}%` : 'Processing official message…'}</Typography>
+        </Box>}
+        <Button onClick={() => setBroadcastOpen(false)} disabled={saving}>Cancel</Button>
+        <Button variant="contained" onClick={sendBroadcast} disabled={saving || (!broadcastDraft.trim() && !broadcastAttachment)}>{saving ? (broadcastAttachment && broadcastUploadProgress !== null ? `Sending… ${broadcastUploadProgress}%` : 'Sending…') : 'Send official message'}</Button>
+      </DialogActions>
+    </Dialog>
+
+    <Dialog open={emailOpen} onClose={closeEmailComposer} fullWidth maxWidth="sm" sx={adminDialogSx}>
+      <DialogTitle>{emailStep === 'done' ? 'Email delivery results' : 'Email Vuprise users'}</DialogTitle>
+      <DialogContent dividers>
+        <Stack gap={2}>
+          {emailStep === 'compose' && <>
+            <Alert severity="info">Every recipient receives an individual email. Addresses are never shared between recipients, and each email is sent only to the recipient it names.</Alert>
+            <Typography variant="body2" color="text.secondary">Sending to {selectAllUsers ? `all eligible${verifiedOnly ? ' verified' : ''} accounts except your admin account` : `${selectedUserIds.length} selected account${selectedUserIds.length === 1 ? '' : 's'}${verifiedOnly ? ' (verified only)' : ''}`}.</Typography>
+            {emailError && <Alert severity="error" onClose={() => setEmailError('')}>{emailError}</Alert>}
+            <TextField label="Subject" value={emailSubject} onChange={(event) => setEmailSubject(event.target.value.slice(0, 200))} inputProps={{ maxLength: 200 }} disabled={saving} autoFocus helperText={`${emailSubject.length}/200`}/>
+            <TextField label="Email message" value={emailMessage} onChange={(event) => setEmailMessage(event.target.value.slice(0, 10000))} multiline minRows={6} inputProps={{ maxLength: 10000 }} disabled={saving} helperText={`${emailMessage.length}/10000`}/>
+            <FormControlLabel control={<Checkbox checked={emailSendSeparately} onChange={(event) => setEmailSendSeparately(event.target.checked)} disabled={saving}/>} label="Send separately"/>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: -1.5 }}>On: slower, paced delivery for careful sends. Off: faster batched delivery. Either way, every recipient gets a private email addressed only to them.</Typography>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>Preview</Typography>
+              <Paper variant="outlined" sx={{ p: 1.75, mt: 0.5, minWidth: 0 }}>
+                <Typography fontWeight={750} sx={{ overflowWrap: 'anywhere' }}>{emailSubject.trim() || 'Subject preview'}</Typography>
+                <Divider sx={{ my: 1 }}/>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: emailMessage.trim() ? 'text.primary' : 'text.disabled' }}>{emailMessage.trim() || 'Message preview'}</Typography>
+              </Paper>
+            </Box>
+          </>}
+          {emailStep === 'confirm' && <>
+            <Alert severity="warning">Send this email to {selectAllUsers ? `all eligible${verifiedOnly ? ' verified' : ''} accounts except your admin account` : `${selectedUserIds.length} selected account${selectedUserIds.length === 1 ? '' : 's'}${verifiedOnly ? ' (verified only)' : ''}`}?</Alert>
+            {emailError && <Alert severity="error" onClose={() => setEmailError('')}>{emailError}</Alert>}
+            <Paper variant="outlined" sx={{ p: 1.75, minWidth: 0 }}>
+              <Typography fontWeight={750} sx={{ overflowWrap: 'anywhere' }}>{emailSubject.trim()}</Typography>
+              <Divider sx={{ my: 1 }}/>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{emailMessage.trim()}</Typography>
+            </Paper>
+            <Typography variant="caption" color="text.secondary">Delivery: {emailSendSeparately ? 'send separately (paced)' : 'batched'} · each recipient receives a private, individually addressed email{verifiedOnly ? ' · verified accounts only' : ''}.</Typography>
+          </>}
+          {emailStep === 'sending' && <Box sx={{ py: 4, textAlign: 'center' }}><LinearProgress sx={{ borderRadius: 1, mb: 2 }}/><Typography color="text.secondary">Sending individual emails… this can take a moment for larger audiences.</Typography></Box>}
+          {emailStep === 'done' && emailSummary && <>
+            <Alert severity={emailSummary.failed ? 'warning' : 'success'}>Email delivery finished: {emailSummary.sent} of {emailSummary.requested} accepted by the provider{emailSummary.failed ? `, ${emailSummary.failed} failed` : ''}{emailSummary.skipped ? `, ${emailSummary.skipped} skipped (missing or duplicate address)` : ''}.</Alert>
+            {emailSummary.failures?.length > 0 && <Box>
+              <Typography fontWeight={750} sx={{ mb: 0.5 }}>Failures</Typography>
+              <Box sx={{ maxHeight: 180, overflowY: 'auto', border: 1, borderColor: 'divider', borderRadius: 1.5, p: 1.25 }}>
+                {emailSummary.failures.map((failure) => <Typography key={failure.email} variant="body2" sx={{ overflowWrap: 'anywhere' }}>{failure.email} · {failure.reason}</Typography>)}
+              </Box>
+              {emailSummary.failed > emailSummary.failures.length && <Typography variant="caption" color="text.secondary">Showing the first {emailSummary.failures.length} of {emailSummary.failed} failures.</Typography>}
+            </Box>}
+          </>}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+        {emailStep === 'compose' && <><Button onClick={closeEmailComposer} disabled={saving}>Cancel</Button><Button variant="contained" onClick={() => { setEmailError(''); setEmailStep('confirm'); }} disabled={saving || !emailSubject.trim() || !emailMessage.trim()}>Review email</Button></>}
+        {emailStep === 'confirm' && <><Button onClick={() => setEmailStep('compose')} disabled={saving}>Back</Button><Button variant="contained" onClick={sendEmail} disabled={saving}>Send emails</Button></>}
+        {emailStep === 'sending' && <Button disabled>Sending…</Button>}
+        {emailStep === 'done' && <Button variant="contained" onClick={closeEmailComposer}>Close</Button>}
+      </DialogActions>
     </Dialog>
 
     <Dialog open={Boolean(selectedBroadcast)} onClose={() => setSelectedBroadcast(null)} fullWidth maxWidth="sm" sx={adminDialogSx}>
@@ -295,15 +483,16 @@ export default function AdminPage() {
       <DialogContent dividers>
         {selectedBroadcast && <Stack spacing={1.5}>
           <Typography variant="caption" color="text.secondary">Sent {new Date(selectedBroadcast.createdAt).toLocaleString()}</Typography>
+          {selectedBroadcast.imageUrl && <MessageImage src={selectedBroadcast.imageUrl} alt="Image attached to an official Vuprise message" maxWidth={420} maxHeight={320}/>}
           {editingBroadcast
-            ? <TextField label="Message" value={broadcastEditDraft} onChange={(event) => setBroadcastEditDraft(event.target.value.slice(0, 5000))} multiline minRows={4} inputProps={{ maxLength: 5000 }} helperText={`${broadcastEditDraft.length}/5000`}/>
-            : <Paper variant="outlined" sx={{ p: 1.75, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selectedBroadcast.text || 'Official message'}</Paper>}
+            ? <TextField label="Message" value={broadcastEditDraft} onChange={(event) => setBroadcastEditDraft(event.target.value.slice(0, 5000))} multiline minRows={4} inputProps={{ maxLength: 5000 }} helperText={selectedBroadcast.imageUrl ? `${broadcastEditDraft.length}/5000 · text may be empty when an image is attached` : `${broadcastEditDraft.length}/5000`}/>
+            : <Paper variant="outlined" sx={{ p: 1.75, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{selectedBroadcast.text || (selectedBroadcast.imageUrl ? 'Image attached · no text' : 'Official message')}</Paper>}
         </Stack>}
       </DialogContent>
       <DialogActions>
         <Button onClick={() => editingBroadcast ? setEditingBroadcast(false) : setSelectedBroadcast(null)} disabled={saving}>{editingBroadcast ? 'Cancel' : 'Close'}</Button>
         {editingBroadcast
-          ? <Button variant="contained" onClick={saveBroadcastEdit} disabled={saving || !broadcastEditDraft.trim()}>{saving ? 'Saving…' : 'Save changes'}</Button>
+          ? <Button variant="contained" onClick={saveBroadcastEdit} disabled={saving || (!broadcastEditDraft.trim() && !selectedBroadcast.imageUrl)}>{saving ? 'Saving…' : 'Save changes'}</Button>
           : <Button variant="contained" onClick={() => { setBroadcastEditDraft(selectedBroadcast?.text || ''); setEditingBroadcast(true); }}>Edit message</Button>}
       </DialogActions>
     </Dialog>
@@ -344,8 +533,8 @@ export default function AdminPage() {
 
     <Dialog open={Boolean(selected?.isInbox)} onClose={() => setSelected(null)} fullWidth maxWidth="md" sx={adminDialogSx}>
       <DialogTitle>{selected?.subject}</DialogTitle><DialogContent dividers sx={{ '& .MuiFormControl-root + .MuiFormControl-root': { mt: 2 } }}>
-        {selected && <Stack gap={2}><Typography variant="body2" color="text.secondary">{selected.email} · {selected.type?.replaceAll('_', ' ')} · {new Date(selected.createdAt).toLocaleString()}</Typography>{selected.user?.moderationStatus && <Alert severity={selected.user.moderationStatus === 'active' ? 'info' : 'warning'}>Linked account: {selected.user.name} · {statusLabels[selected.user.moderationStatus] || selected.user.moderationStatus}{selected.user.moderationExpiresAt ? ` until ${new Date(selected.user.moderationExpiresAt).toLocaleString()}` : ''}{selected.user.moderationReason ? ` · ${selected.user.moderationReason}` : ''}</Alert>}<Paper variant="outlined" sx={{ p: 2, whiteSpace: 'pre-wrap' }}>{selected.message}</Paper>{selected.reportedUser && <Typography>Reported account: {selected.reportedUser.name} ({selected.reportedUser._id})</Typography>}{selected.reportedPost && <Typography>Reported post: {selected.reportedPost._id} · {selected.reportedPost.content}</Typography>}{selected.evidenceUrls?.map((url) => <Button key={url} component="a" href={url} target="_blank" rel="noreferrer" variant="outlined">Open submitted evidence</Button>)}{selected.resolution && <Alert severity="info"><b>Previous reply:</b> {selected.resolution} · {selected.replySentAt ? 'email accepted by Brevo' : 'email not yet accepted'} {selected.resolutionOutcome && `· ${selected.resolutionOutcome.replaceAll('_', ' ')}`}</Alert>}{selected.type === 'report' && selected.status === 'pending' && <Alert severity="info">Saving while Pending closes this report and removes it from Unresolved reports. Choose Under review to keep it open.</Alert>}<Typography fontWeight={750}>Internal notes</Typography>{selected.adminNotes?.map((note) => <Paper key={note._id} variant="outlined" sx={{ p: 1.25 }}><Typography variant="body2">{note.text}</Typography><Typography variant="caption" color="text.secondary">{note.admin?.name || 'Admin'} · {new Date(note.createdAt).toLocaleString()}</Typography></Paper>)}<TextField select label="Status" value={reviewDraft.status} onChange={(event) => setReviewDraft((draft) => ({ ...draft, status: event.target.value }))}><MenuItem value="pending">Pending</MenuItem><MenuItem value="under_review">Under review</MenuItem><MenuItem value="approved">Approved</MenuItem><MenuItem value="rejected">Rejected</MenuItem><MenuItem value="resolved">Resolved</MenuItem></TextField><TextField select label="Priority" value={reviewDraft.priority} onChange={(event) => setReviewDraft((draft) => ({ ...draft, priority: event.target.value }))}><MenuItem value="low">Low</MenuItem><MenuItem value="normal">Normal</MenuItem><MenuItem value="high">High</MenuItem><MenuItem value="urgent">Urgent</MenuItem></TextField><TextField label="Internal note (optional)" value={reviewDraft.note} onChange={(event) => setReviewDraft((draft) => ({ ...draft, note: event.target.value }))} multiline minRows={2}/><TextField label="Reply to requester (optional; emailed through Brevo)" value={reviewDraft.resolution} onChange={(event) => setReviewDraft((draft) => ({ ...draft, resolution: event.target.value }))} multiline minRows={2}/>{selected.type?.endsWith('_appeal') && <TextField select label="Approved appeal outcome (required when approved)" value={reviewDraft.outcome} onChange={(event) => setReviewDraft((draft) => ({ ...draft, outcome: event.target.value }))}><MenuItem value="">Select outcome</MenuItem><MenuItem value="lift_temporary_ban">Lift temporary ban</MenuItem><MenuItem value="lift_permanent_ban">Lift permanent ban</MenuItem><MenuItem value="reply_only">Reply only / no account change</MenuItem></TextField>}</Stack>}
-      </DialogContent><DialogActions><Button onClick={() => setSelected(null)}>Close</Button><Button variant="contained" disabled={saving} onClick={() => {
+        {selected && <Stack gap={2}><Typography variant="body2" color="text.secondary">{selected.email} · {selected.type?.replaceAll('_', ' ')} · {new Date(selected.createdAt).toLocaleString()}</Typography>{selected.user?.moderationStatus && <Alert severity={selected.user.moderationStatus === 'active' ? 'info' : 'warning'}>Linked account: {selected.user.name} · {statusLabels[selected.user.moderationStatus] || selected.user.moderationStatus}{selected.user.moderationExpiresAt ? ` until ${new Date(selected.user.moderationExpiresAt).toLocaleString()}` : ''}{selected.user.moderationReason ? ` · ${selected.user.moderationReason}` : ''}</Alert>}{selected.type?.endsWith('_appeal') && !selected.user && <Alert severity="warning">This appeal is not linked to an account yet. If the appeal email matches a banned account, saving with a ban-lift outcome links it automatically. Otherwise choose "Reply only / no account change".</Alert>}<Paper variant="outlined" sx={{ p: 2, whiteSpace: 'pre-wrap' }}>{selected.message}</Paper>{selected.reportedUser && <Typography>Reported account: {selected.reportedUser.name} ({selected.reportedUser._id})</Typography>}{selected.reportedPost && <Typography>Reported post: {selected.reportedPost._id} · {selected.reportedPost.content}</Typography>}{selected.evidenceUrls?.map((url) => <Button key={url} component="a" href={url} target="_blank" rel="noreferrer" variant="outlined">Open submitted evidence</Button>)}{selected.resolution && <Alert severity="info"><b>Previous reply:</b> {selected.resolution} · {selected.replySentAt ? 'email accepted by Brevo' : 'email not yet accepted'} {selected.resolutionOutcome && `· ${selected.resolutionOutcome.replaceAll('_', ' ')}`}</Alert>}{selected.type === 'report' && selected.status === 'pending' && <Alert severity="info">Saving while Pending closes this report and removes it from Unresolved reports. Choose Under review to keep it open.</Alert>}<Typography fontWeight={750}>Internal notes</Typography>{selected.adminNotes?.map((note) => <Paper key={note._id} variant="outlined" sx={{ p: 1.25 }}><Typography variant="body2">{note.text}</Typography><Typography variant="caption" color="text.secondary">{note.admin?.name || 'Admin'} · {new Date(note.createdAt).toLocaleString()}</Typography></Paper>)}<TextField select label="Status" value={reviewDraft.status} onChange={(event) => setReviewDraft((draft) => ({ ...draft, status: event.target.value }))}><MenuItem value="pending">Pending</MenuItem><MenuItem value="under_review">Under review</MenuItem><MenuItem value="approved">Approved</MenuItem><MenuItem value="rejected">Rejected</MenuItem><MenuItem value="resolved">Resolved</MenuItem></TextField><TextField select label="Priority" value={reviewDraft.priority} onChange={(event) => setReviewDraft((draft) => ({ ...draft, priority: event.target.value }))}><MenuItem value="low">Low</MenuItem><MenuItem value="normal">Normal</MenuItem><MenuItem value="high">High</MenuItem><MenuItem value="urgent">Urgent</MenuItem></TextField><TextField label="Internal note (optional)" value={reviewDraft.note} onChange={(event) => setReviewDraft((draft) => ({ ...draft, note: event.target.value }))} multiline minRows={2}/><TextField label="Reply to requester (optional; emailed through Brevo)" value={reviewDraft.resolution} onChange={(event) => setReviewDraft((draft) => ({ ...draft, resolution: event.target.value }))} multiline minRows={2}/>{selected.type?.endsWith('_appeal') && <TextField select label="Approved appeal outcome (required when approved)" value={reviewDraft.outcome} onChange={(event) => setReviewDraft((draft) => ({ ...draft, outcome: event.target.value }))}><MenuItem value="">Select outcome</MenuItem><MenuItem value="lift_temporary_ban">Lift temporary ban</MenuItem><MenuItem value="lift_permanent_ban">Lift permanent ban</MenuItem><MenuItem value="reply_only">Reply only / no account change</MenuItem></TextField>}</Stack>}
+      </DialogContent><DialogActions><Button onClick={() => setSelected(null)}>Close</Button><Button variant="contained" disabled={saving || (selected?.type?.endsWith('_appeal') && reviewDraft.status === 'approved' && !reviewDraft.outcome)} onClick={() => {
         updateInbox({ status: reviewDraft.status, priority: reviewDraft.priority, note: reviewDraft.note || undefined, resolution: reviewDraft.resolution, outcome: reviewDraft.outcome || undefined });
       }}>Save review</Button></DialogActions>
     </Dialog>

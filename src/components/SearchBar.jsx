@@ -120,7 +120,7 @@ const SearchBar = ({ placeholder = 'Search professionals, skills, insights...', 
           />
           {loading && <CircularProgress size={16} sx={{ mr: 1, color: 'text.secondary' }} />}
           {query && !loading && (
-            <IconButton size="small" onClick={() => { setQuery(''); setResults({ users: [], posts: [] }); }}>
+            <IconButton size="small" aria-label="Clear search" onClick={() => { setQuery(''); setResults({ users: [], posts: [] }); }}>
               <ClearRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           )}

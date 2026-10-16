@@ -7,6 +7,20 @@ import { connectionAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
+// Compact, content-sized base for every connection state. Callers can still
+// override via connectSx/connectedSx/sx. The global theme forces buttons to a
+// 40px minimum height, so the override must set minHeight explicitly.
+const compactSx = {
+  minWidth: 0,
+  minHeight: 32,
+  py: 0.5,
+  px: 1.25,
+  fontSize: '0.8125rem',
+  lineHeight: 1.2,
+  whiteSpace: 'nowrap',
+  '& .MuiButton-startIcon': { mr: 0.5, ml: 0 }
+};
+
 const ConnectionButton = ({
   userId,
   userName = 'this user',
@@ -96,15 +110,15 @@ const ConnectionButton = ({
 
   if (loading && status !== 'connected') {
     return (
-      <Button size={size} disabled variant="outlined" sx={{ minWidth: 100, ...sx }}>
-        <CircularProgress size={18} />
+      <Button size={size} disabled variant="outlined" sx={{ ...compactSx, ...connectSx, ...sx }}>
+        <CircularProgress size={16} />
       </Button>
     );
   }
 
   if (status === 'pending_received') {
       return (
-      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={sx} onClick={(e) => e.stopPropagation()}>
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="flex-start" sx={{ minWidth: 0, ...sx }} onClick={(e) => e.stopPropagation()}>
         <Button
           size={size}
           variant="contained"
@@ -112,17 +126,9 @@ const ConnectionButton = ({
           onClick={handleAccept}
           disabled={loading}
           startIcon={<CheckRoundedIcon />}
+          sx={{ ...compactSx, ...connectSx }}
         >
           Connect back
-        </Button>
-        <Button
-          size={size}
-          variant="outlined"
-          color="inherit"
-          onClick={handleRejectOrRemove}
-          disabled={loading}
-        >
-          Decline
         </Button>
         {actionError && <Alert severity="error" sx={{ flexBasis: '100%' }}>{actionError}</Alert>}
       </Stack>
@@ -131,9 +137,9 @@ const ConnectionButton = ({
 
   if (status === 'pending_sent') {
     return (
-      <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+      <Stack spacing={0.75} alignItems="flex-start" sx={{ minWidth: 0 }}>
         <Tooltip title="You connected with this member. Click to remove the connection.">
-          <Button size={size} variant="outlined" color="primary" onClick={handleRejectOrRemove} startIcon={<CheckRoundedIcon />} sx={{ borderColor: 'primary.main', ...sx }}>
+          <Button size={size} variant="outlined" color="primary" onClick={handleRejectOrRemove} startIcon={<CheckRoundedIcon />} sx={{ borderColor: 'primary.main', ...compactSx, ...connectedSx, ...sx }}>
             Connected
           </Button>
         </Tooltip>
@@ -160,7 +166,7 @@ const ConnectionButton = ({
           startIcon={loading ? <CircularProgress size={16} /> : (isHovered ? <PersonRemoveOutlinedIcon /> : <CheckRoundedIcon />)}
           aria-label={`Disconnect from ${userName}`}
           sx={{
-            minWidth: 110,
+            ...compactSx,
             transition: 'all 0.2s',
             borderColor: isHovered ? 'error.main' : 'primary.main',
             ...connectedSx,
@@ -199,8 +205,8 @@ const ConnectionButton = ({
 
   // Default: 'none'
   return (
-    <Stack spacing={0.75} sx={{ minWidth: 0 }}>
-      <Button size={size} variant="contained" color="primary" onClick={handleConnect} startIcon={<PersonAddOutlinedIcon />} sx={{ ...connectSx, ...sx }}>
+    <Stack spacing={0.75} alignItems="flex-start" sx={{ minWidth: 0 }}>
+      <Button size={size} variant="contained" color="primary" onClick={handleConnect} startIcon={<PersonAddOutlinedIcon />} sx={{ ...compactSx, ...connectSx, ...sx }}>
         Connect
       </Button>
       {actionError && <Alert severity="error" sx={{ maxWidth: 320 }}>{actionError}</Alert>}

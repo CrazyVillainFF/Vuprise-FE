@@ -23,6 +23,8 @@ import StatusMark from '../components/reactbits/StatusMark';
 const SignInPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Hidden anti-automation field; real users never see or fill it (server honeypot).
+  const [website, setWebsite] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -43,10 +45,13 @@ const SignInPage = () => {
     try {
       setSubmitting(true);
       setError(null);
-      await login(email, password);
+      await login(email, password, { website });
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err.message || 'Invalid email or password.');
+      // Restricted accounts get the dedicated ban notice (ModerationNoticeLayer)
+      // instead of a duplicate generic error line.
+      if (err.response?.data?.code === 'ACCOUNT_RESTRICTED') setError(null);
+      else setError(err.message || 'Invalid email or password.');
     } finally {
       setSubmitting(false);
     }
@@ -115,6 +120,15 @@ const SignInPage = () => {
                   </InputAdornment>
                 ),
               }}}
+            />
+            <TextField
+              label="Website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              autoComplete="off"
+              tabIndex={-1}
+              sx={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+              inputProps={{ 'aria-hidden': true }}
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1.5 }}>
               <Typography component={Link} to="/forgot-password" variant="body2" color="primary" sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>

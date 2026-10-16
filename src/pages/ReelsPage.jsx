@@ -38,6 +38,7 @@ import { composeReelFeed, mergeReelFeedPosts } from '../utils/reelsFeed';
 import { feedConnectionStatus } from '../utils/connectionState';
 import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
 import ConnectionButton from '../components/ConnectionButton';
+import EmojiPickerControl from '../components/EmojiPickerControl';
 import ReportDialog from '../components/ReportDialog';
 import { isVerifiedAccount } from '../utils/verification';
 
@@ -402,7 +403,7 @@ const ReelSlide = ({
           pointerEvents: 'none',
         }}
       >
-        <Stack direction="row" spacing={1.1} sx={{ alignItems: 'center', pointerEvents: 'auto' }}>
+        <Stack direction="row" spacing={1.1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.75, pointerEvents: 'auto' }}>
           <Avatar src={author.profilePicture || undefined} alt={author.name || 'Vuprise member'} sx={{ width: 42, height: 42, border: '1px solid rgba(255,255,255,.75)' }}>
             {author.name?.[0] || 'V'}
           </Avatar>
@@ -420,8 +421,8 @@ const ReelSlide = ({
               userName={author.name}
               initialStatus={connectionStatus}
               size="small"
-              connectSx={{ minWidth: 82, height: 32, px: 1.25, borderRadius: 5, color: '#fff', bgcolor: 'rgba(8,9,11,.3)', border: '1px solid rgba(255,255,255,.72)', textTransform: 'none', fontWeight: 750, textShadow: 'none', '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.14)' } }}
-              connectedSx={{ minWidth: 108, height: 32, px: 1.25, borderRadius: 5, color: '#fff', borderColor: 'rgba(255,255,255,.9)', textTransform: 'none', fontWeight: 750, textShadow: 'none', '&:hover': { borderColor: '#ff8993', bgcolor: 'rgba(255,255,255,.14)' } }}
+              connectSx={{ minWidth: 0, minHeight: 28, height: 28, py: 0.5, px: 1, fontSize: '0.75rem', lineHeight: 1.2, borderRadius: 5, color: '#fff', bgcolor: 'rgba(8,9,11,.3)', border: '1px solid rgba(255,255,255,.72)', textTransform: 'none', fontWeight: 750, textShadow: 'none', '& .MuiButton-startIcon': { mr: 0.5, ml: 0 }, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.14)' } }}
+              connectedSx={{ minWidth: 0, minHeight: 28, height: 28, py: 0.5, px: 1, fontSize: '0.75rem', lineHeight: 1.2, borderRadius: 5, color: '#fff', borderColor: 'rgba(255,255,255,.9)', textTransform: 'none', fontWeight: 750, textShadow: 'none', '& .MuiButton-startIcon': { mr: 0.5, ml: 0 }, '&:hover': { borderColor: '#ff8993', bgcolor: 'rgba(255,255,255,.14)' } }}
             />
           )}
         </Stack>
@@ -837,6 +838,7 @@ const ReelsPage = () => {
           <Box component="form" onSubmit={sendComment} sx={{ display: 'flex', gap: 1, px: 1.5, py: 1.25, borderTop: '1px solid rgba(255,255,255,.12)' }}>
             <Avatar src={user?.profilePicture || undefined} sx={{ width: 36, height: 36, alignSelf: 'center' }}>{user?.name?.[0] || 'V'}</Avatar>
             <TextField value={commentText} onChange={(event) => setCommentText(event.target.value)} size="small" fullWidth placeholder="Add a comment..." slotProps={{ htmlInput: { 'aria-label': 'Add a comment', maxLength: 2000 } }} sx={{ '& .MuiOutlinedInput-root': { color: '#fff', borderRadius: 5, bgcolor: 'rgba(255,255,255,.06)' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,.2)' }, '& input::placeholder': { color: 'rgba(255,255,255,.55)', opacity: 1 } }} />
+            <EmojiPickerControl disabled={commentSending} onSelect={(emoji) => setCommentText((current) => `${current}${emoji}`.slice(0, 2000))} />
             <IconButton type="submit" aria-label="Send comment" disabled={!commentText.trim() || commentSending} sx={{ color: '#fff' }}>{commentSending ? <CircularProgress size={20} color="inherit" /> : <SendRoundedIcon />}</IconButton>
           </Box>
         </Stack>

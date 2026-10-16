@@ -179,7 +179,7 @@ const EditProfilePage = () => {
   return (
     <Container maxWidth="md" sx={{ py: 2 }}>
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
-        <IconButton onClick={() => navigate(-1)} color="inherit">
+        <IconButton onClick={() => navigate(-1)} color="inherit" aria-label="Go back">
           <ArrowBackRoundedIcon />
         </IconButton>
         <Box>
@@ -354,6 +354,7 @@ const EditProfilePage = () => {
                 <IconButton
                   size="small"
                   onClick={() => handleRemoveExperience(index)}
+                  aria-label={`Remove experience ${index + 1}`}
                   sx={{ position: 'absolute', top: 12, right: 12, color: 'error.main' }}
                 >
                   <DeleteOutlineRoundedIcon fontSize="small" />
@@ -471,6 +472,7 @@ const EditProfilePage = () => {
                 <IconButton
                   size="small"
                   onClick={() => handleRemoveEducation(index)}
+                  aria-label={`Remove education ${index + 1}`}
                   sx={{ position: 'absolute', top: 12, right: 12, color: 'error.main' }}
                 >
                   <DeleteOutlineRoundedIcon fontSize="small" />

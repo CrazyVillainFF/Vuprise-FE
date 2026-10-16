@@ -21,7 +21,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { groupAPI, messageAPI, userAPI } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
 import { decryptMessage, getDeviceKeyPair } from '../utils/e2ee';
-import { sortContactsByRecentConversations } from '../utils/messageInbox';
+import { buildInboxPeers } from '../utils/messageInbox';
 import { getBrandedHeadline } from '../utils/brandCopy';
 import Badge from '@mui/material/Badge';
 import TypingIndicator from '../components/TypingIndicator';
@@ -30,6 +30,7 @@ import GroupChatPanel from './GroupChatPage';
 import MessageInteractions from '../components/MessageInteractions';
 import { formatLastSeen } from '../utils/presenceTime';
 import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
+import MessageImage from '../components/MessageImage';
 import { isVerifiedAccount } from '../utils/verification';
 
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
@@ -488,6 +489,21 @@ const MessagesPage = () => {
   }, [user?._id, navigate]);
 
   useEffect(() => {
+    if (!user?._id) return undefined;
+    // Keep the inbox list live so a first message from a non-connected member
+    // appears without requiring a full page reload.
+    const interval = window.setInterval(async () => {
+      try {
+        const response = await messageAPI.getConversations();
+        setConversations(response.data.conversations || []);
+      } catch {
+        // Keep the current inbox if a background refresh fails.
+      }
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [user?._id]);
+
+  useEffect(() => {
     const selectedConversation = active;
     if (!selectedConversation) return undefined;
     loadMessages(selectedConversation._id, privateKey, selectedConversation.peer.encryptionSigningPublicKey);
@@ -683,8 +699,11 @@ const MessagesPage = () => {
     }
   };
 
+  // Public accounts can receive first messages from members they are not
+  // connected to. The chat list therefore combines accepted connections with
+  // every conversation the API returned so those messages are discoverable.
   const orderedContacts = useMemo(() => {
-    return sortContactsByRecentConversations(contacts, conversations);
+    return buildInboxPeers(contacts, conversations);
   }, [contacts, conversations]);
 
   const filteredContacts = useMemo(() => {
@@ -800,7 +819,7 @@ const MessagesPage = () => {
                 <Typography fontWeight={750} noWrap>{user?.name || 'Vuprise'}</Typography>
                 <Typography variant="caption" color="text.secondary">Messages</Typography>
               </Box>
-              <IconButton aria-label="Find a connection to message" onClick={() => searchRef.current?.focus()}>
+              <IconButton aria-label="Search chats" onClick={() => searchRef.current?.focus()}>
                 <EditNoteRoundedIcon />
               </IconButton>
               <IconButton aria-label="Create group" onClick={() => { setError(''); setGroupDialogError(''); setGroupNameDraft('New Group'); setGroupAboutDraft('Welcome Everyone'); setGroupIconFile(null); setGroupDialogOpen(true); }}>
@@ -815,7 +834,7 @@ const MessagesPage = () => {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search chats"
-                slotProps={{ htmlInput: { 'aria-label': 'Search accepted connections' }, input: {
+                slotProps={{ htmlInput: { 'aria-label': 'Search chats' }, input: {
                   startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" color="action" /></InputAdornment>,
                 }}}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 5, bgcolor: 'action.hover' } }}
@@ -950,9 +969,9 @@ const MessagesPage = () => {
                 </List>
               ) : (
                 <Stack alignItems="center" justifyContent="center" sx={{ px: 3, py: 5, textAlign: 'center' }}>
-                  <Typography fontWeight={700}>{contacts.length ? 'No matches' : 'No chats yet'}</Typography>
+                  <Typography fontWeight={700}>{orderedContacts.length ? 'No matches' : 'No chats yet'}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {contacts.length || groups.length ? 'Try a different name.' : 'Your messageable connections and group chats will appear here.'}
+                    {orderedContacts.length || groups.length ? 'Try a different name.' : 'Your conversations and group chats will appear here.'}
                   </Typography>
                 </Stack>
               )}
@@ -1003,7 +1022,11 @@ const MessagesPage = () => {
                         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: ownMessage ? 'flex-end' : 'flex-start' }}>
                           <Paper elevation={0} sx={{ px: 1.5, py: 1.1, borderRadius: 2.5, bgcolor: ownMessage ? 'primary.main' : 'action.hover', color: ownMessage ? 'primary.contrastText' : 'text.primary', overflowWrap: 'anywhere' }}>
                             {removedForEveryone ? <Typography variant="body2" fontStyle="italic" color="text.secondary">This message was deleted</Typography> : <>
-                              {message.imageUrl && <Box component="img" src={message.imageUrl} alt="Image shared in chat" loading="lazy" sx={{ display: 'block', width: 'min(100%, 360px)', maxHeight: 360, objectFit: 'contain', borderRadius: 1.5, mb: message.text ? 0.8 : 0 }} />}
+                              {message.imageUrl && <MessageImage
+                                src={message.imageUrl}
+                                alt={message.text?.trim() ? message.text.trim().slice(0, 160) : active.isOfficialBroadcast ? 'Image attached to an official Vuprise message' : 'Image shared in chat'}
+                                sx={{ mb: message.text ? 0.8 : 0 }}
+                              />}
                               {message.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography>}
                             </>}
                           </Paper>
@@ -1027,7 +1050,7 @@ const MessagesPage = () => {
                   <div ref={bottomRef} />
                 </Box>
                 {active.readOnly ? <Alert severity="info" sx={{ m: 1.25 }}>This is an official message from Vuprise. Replies are not available.</Alert> : <>
-                {attachment && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={attachmentPreview} alt="Image preview" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
+                {attachment && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={attachmentPreview} alt="Preview of the photo you are about to send" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
                 <Box component="form" onSubmit={sendMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: attachment ? 0 : 1, borderColor: 'divider', display: 'flex', gap: 0.5, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
                   <input ref={imageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleMessageImageSelect} aria-label="Attach an image" />
                   <IconButton aria-label="Attach image" onClick={() => imageInputRef.current?.click()} disabled={sending}><AttachFileRoundedIcon /></IconButton>

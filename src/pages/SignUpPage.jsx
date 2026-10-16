@@ -38,6 +38,8 @@ const SignUpPage = () => {
     courseStartYear: '',
     password: '',
     confirmPassword: '',
+    // Hidden anti-automation field; real users never see or fill it (server honeypot).
+    website: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -109,7 +111,8 @@ const SignUpPage = () => {
         courseStartYear: accountType === 'student' ? courseStartYear : '',
         headline: accountType === 'student'
           ? `${course.trim()} student at ${schoolName.trim()}`
-          : `${jobTitle.trim()} at ${company.trim()}`
+          : `${jobTitle.trim()} at ${company.trim()}`,
+        website: formData.website
       });
       navigate('/home');
     } catch (err) {
@@ -138,6 +141,16 @@ const SignUpPage = () => {
         )}
 
         <form onSubmit={handleSubmit}>
+          <TextField
+            label="Website"
+            name="website"
+            value={formData.website}
+            onChange={handleChange}
+            autoComplete="off"
+            tabIndex={-1}
+            sx={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+            inputProps={{ 'aria-hidden': true }}
+          />
           <Stack spacing={2}>
             <TextField
               label="Full Name"

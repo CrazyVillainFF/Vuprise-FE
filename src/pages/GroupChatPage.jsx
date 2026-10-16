@@ -350,7 +350,7 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25, px: 0.6, textAlign: own ? 'right' : 'left', fontSize: '0.7rem' }}>{message.sender?.name || (own ? 'You' : 'Group member')}</Typography>
               <Paper elevation={0} sx={{ px: 1.5, py: 1.1, borderRadius: 2.5, bgcolor: own ? 'primary.main' : 'action.hover', color: own ? 'primary.contrastText' : 'text.primary', overflowWrap: 'anywhere' }}>
                 {removed ? <Typography variant="body2" fontStyle="italic" color="text.secondary">This message was deleted</Typography> : <>
-                  {message.imageUrl && <Box component="img" src={message.imageUrl} alt="Image shared in group" loading="lazy" sx={{ display: 'block', width: 'min(100%, 360px)', maxHeight: 360, objectFit: 'contain', borderRadius: 1.5, mb: message.text ? 0.8 : 0 }} />}
+                  {message.imageUrl && <Box component="img" src={message.imageUrl} alt={own ? 'Image you shared in the group' : `Image shared in the group by ${message.sender?.name || 'a member'}`} loading="lazy" sx={{ display: 'block', width: 'min(100%, 360px)', maxHeight: 360, objectFit: 'contain', borderRadius: 1.5, mb: message.text ? 0.8 : 0 }} />}
                   {message.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography>}
                 </>}
               </Paper>
@@ -364,7 +364,7 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
           </Box>;
         })}
       </Box>
-      {imageFile && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={imagePreview} alt="Image preview" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{imageFile.name}</Typography><Button size="small" onClick={() => { setImageFile(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
+      {imageFile && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={imagePreview} alt="Preview of the image you are about to send" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{imageFile.name}</Typography><Button size="small" onClick={() => { setImageFile(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
       {Object.keys(typingMembers).length > 0 && <Box sx={{ px: 2, py: 0.15, minHeight: 22 }}><TypingIndicator label={`${Object.values(typingMembers).join(', ')} typing`} /></Box>}
       <Box component="form" onSubmit={submitMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: imageFile ? 0 : 1, borderColor: 'divider', display: 'flex', gap: 0.5, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
         <input ref={imageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={chooseImage} aria-label="Attach an image" />

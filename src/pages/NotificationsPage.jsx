@@ -125,6 +125,14 @@ const NotificationsPage = () => {
     }
   };
 
+  const handleActionClick = (event, item, destination) => {
+    event.stopPropagation();
+    if (!item.read) {
+      markAsRead(item._id);
+    }
+    navigate(destination);
+  };
+
   const handleConnectionRequest = async (event, item, requestId, action) => {
     event.stopPropagation();
     if (!requestId || loadingRequestId) return;
@@ -145,7 +153,13 @@ const NotificationsPage = () => {
   return (
     <Container maxWidth="md">
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        spacing={{ xs: 1.5, sm: 0 }}
+        sx={{ mb: 3 }}
+      >
         <Box>
           <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em">
             Activity & Notifications
@@ -202,6 +216,7 @@ const NotificationsPage = () => {
                   role="group"
                   tabIndex={0}
                   onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       handleNotificationClick(item);
@@ -213,6 +228,7 @@ const NotificationsPage = () => {
                     display: 'flex',
                     alignItems: { xs: 'flex-start', sm: 'center' },
                     flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                    rowGap: { xs: 0.5, sm: 0 },
                     cursor: 'pointer',
                     bgcolor: item.read ? 'transparent' : 'action.selected',
                     transition: 'all 0.15s ease',
@@ -222,9 +238,14 @@ const NotificationsPage = () => {
                     '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
                   }}
                 >
-                    <Stack direction="row" spacing={{ xs: 1.25, sm: 2 }} alignItems="center" sx={{ flex: 1, minWidth: 0, pr: { xs: 0, sm: 2 } }}>
+                    <Stack
+                      direction="row"
+                      spacing={{ xs: 1.25, sm: 2 }}
+                      alignItems="center"
+                      sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: 0, pr: { xs: 0, sm: 2 } }}
+                    >
                     {/* Avatar with Type Icon Badge */}
-                    <Box sx={{ position: 'relative' }}>
+                    <Box sx={{ position: 'relative', flexShrink: 0 }}>
                       <Avatar
                         src={sender.profilePicture}
                         alt={sender.name}
@@ -250,7 +271,7 @@ const NotificationsPage = () => {
 
                     {/* Content */}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: item.read ? 500 : 700, overflowWrap: 'anywhere' }}>
+                      <Typography variant="body2" sx={{ fontWeight: item.read ? 500 : 700, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                         {item.message}
                         {item.type === 'official_message' && <VerifiedAccountBadge color="gold" size={16} sx={{ ml: 0.6, verticalAlign: 'middle' }} />}
                       </Typography>
@@ -261,7 +282,20 @@ const NotificationsPage = () => {
                   </Stack>
 
                   {/* Actions */}
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: { xs: 'auto', sm: 0 }, pl: { xs: 1, sm: 0 }, flexShrink: 0 }}>
+                  <Stack
+                    direction="row"
+                    spacing={0.5}
+                    useFlexGap
+                    alignItems="center"
+                    sx={{
+                      ml: { xs: 'auto', sm: 0 },
+                      flexShrink: 0,
+                      flexWrap: 'wrap',
+                      justifyContent: { xs: 'flex-end', sm: 'flex-start' },
+                      minWidth: 0,
+                      maxWidth: '100%',
+                    }}
+                  >
                     {item.type === 'connection_request' && (() => {
                       const senderId = String(item.sender?._id || item.sender || '');
                       const linkedRequest = item.connection && typeof item.connection === 'object' ? item.connection : null;
@@ -281,12 +315,12 @@ const NotificationsPage = () => {
                       );
                     })()}
                     {item.sender?._id && ['connection_request', 'connection_accepted'].includes(item.type) && (
-                      <Button size="small" variant="text" color="inherit" onClick={() => navigate(`/messages?contact=${item.sender._id}`)}>
+                      <Button size="small" variant="text" color="inherit" onClick={(event) => handleActionClick(event, item, `/messages?contact=${item.sender._id}`)}>
                         Message
                       </Button>
                     )}
                     {item.sender?._id && item.type !== 'official_message' && (
-                      <Button size="small" variant="text" color="inherit" onClick={() => navigate(`/profile/${item.sender._id}`)}>
+                      <Button size="small" variant="text" color="inherit" onClick={(event) => handleActionClick(event, item, `/profile/${item.sender._id}`)}>
                         View profile
                       </Button>
                     )}
@@ -319,6 +353,7 @@ const NotificationsPage = () => {
                     <Tooltip title="Delete notification">
                       <IconButton
                         size="small"
+                        aria-label="Delete notification"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteNotification(item._id);

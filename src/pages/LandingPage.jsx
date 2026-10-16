@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Button, Container, Grid, Stack, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
@@ -66,7 +66,7 @@ const LandingPage = () => {
                   radius={12}
                   tint={dark ? '#FFFFFF' : '#000000'}
                   tintOpacity={1}
-                  textColor="#FFFFFF"
+                  textColor={dark ? '#000000' : '#FFFFFF'}
                   lineColor={dark ? '#FFFFFF' : '#000000'}
                   baseColor={dark ? '#FFFFFF' : '#000000'}
                   intensity={0.9}
@@ -139,6 +139,54 @@ const LandingPage = () => {
               ))}
             </Box>
           </Grid>
+        </Grid>
+      </Container>
+
+      {/* Reviews stay empty until real members share words we have permission
+          to publish; no placeholder quotes are invented. */}
+      <Container maxWidth="xl" sx={{ pb: { xs: 4, md: 6 } }}>
+        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 4, p: { xs: 3, md: 5 }, bgcolor: 'background.paper' }}>
+          <Typography variant="overline" color="primary.main" fontWeight={700} letterSpacing=".12em">Member reviews</Typography>
+          <Typography variant="h2" sx={{ fontSize: { xs: '1.5rem', md: '2rem' }, lineHeight: 1.2, my: 1.25, maxWidth: 640 }}>
+            Real words from real members — coming soon.
+          </Typography>
+          <Typography color="text.secondary" sx={{ maxWidth: 620, lineHeight: 1.8 }}>
+            Vuprise only publishes reviews that members share with permission. There are none to show yet; when members send theirs, they will appear here exactly as written.
+          </Typography>
+        </Box>
+      </Container>
+
+      <Container maxWidth="xl" sx={{ pb: { xs: 6, md: 8 } }}>
+        <Grid container spacing={1.5}>
+          {[
+            { title: 'Frequently asked questions', copy: 'How messaging privacy, password resets, reports, and appeals work.', to: '/faq' },
+            { title: 'Privacy Policy', copy: 'What Vuprise stores, how it is protected, and the choices you have.', to: '/privacy' },
+            { title: 'Support', copy: 'Report a problem or appeal a restriction — no sign-in required.', to: '/support/request' },
+            { title: 'Satisfied Games', copy: 'A small interactive experiment from the Vuprise team.', to: '/satisfied-games' },
+          ].map(({ title, copy, to }) => (
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={to}>
+              <Box
+                component={RouterLink}
+                to={to}
+                sx={{
+                  display: 'block',
+                  height: '100%',
+                  p: 2.5,
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 3,
+                  bgcolor: 'background.paper',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  transition: 'border-color 160ms ease, transform 160ms ease',
+                  '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' },
+                }}
+              >
+                <Typography variant="subtitle1" fontWeight={750} sx={{ mb: .5 }}>{title}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>{copy}</Typography>
+              </Box>
+            </Grid>
+          ))}
         </Grid>
       </Container>
     </Box>

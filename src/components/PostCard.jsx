@@ -326,7 +326,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
             ) : null
           }
           title={
-            <Stack direction="row" spacing={0.75} alignItems="center" useFlexGap flexWrap="wrap">
+            <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
               <Typography
                 variant="subtitle1"
                 fontWeight={700}
@@ -459,7 +459,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
               <Box
                 component="img"
                 src={post.image}
-                alt="Post visual attachment"
+                alt={author.name ? `Image shared by ${author.name}` : 'Image shared in a post'}
                 sx={{
                   width: '100%',
                   height: 'auto',
@@ -744,7 +744,7 @@ const PostCard = ({ post, onPostDeleted, onPostUpdated }) => {
         <Box
           component="img"
           src={post.image}
-          alt="Post full visual"
+          alt={author.name ? `Full image shared by ${author.name}` : 'Full image shared in a post'}
           sx={{ width: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: 2 }}
         />
       </Dialog>

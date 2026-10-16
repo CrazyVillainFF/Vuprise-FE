@@ -8,6 +8,7 @@ import { useNotifications } from '../context/NotificationContext';
 import Navbar from '../components/Navbar';
 import MobileBottomNav from '../components/MobileBottomNav';
 import SiteBackdrop from '../components/SiteBackdrop';
+import SiteFooter from '../components/SiteFooter';
 import LocationOnboardingDialog from '../components/LocationOnboardingDialog';
 import WelcomeMoment from '../components/WelcomeMoment';
 
@@ -70,6 +71,7 @@ const MainLayout = () => {
       >
         <Outlet />
       </Box>
+      {!isMobileMessages && !isReelsPage && <SiteFooter />}
       <Box
         aria-live="polite"
         aria-atomic="true"

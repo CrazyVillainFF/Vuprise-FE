@@ -77,11 +77,12 @@ export const AuthProvider = ({ children }) => {
     };
   }, [checkAuth, logout]);
 
-  // Login handler
-  const login = async (email, password) => {
+  // Login handler. `extras` carries the hidden anti-automation field so the
+  // server honeypot stays effective without changing the visible form.
+  const login = async (email, password, extras = {}) => {
     setAuthError(null);
     try {
-      const res = await authAPI.login({ email, password });
+      const res = await authAPI.login({ email, password, ...extras });
       const { token: receivedToken, user: receivedUser } = res.data;
 
       localStorage.setItem('nexora_token', receivedToken);
@@ -94,7 +95,13 @@ export const AuthProvider = ({ children }) => {
       setWelcomeMessage('Welcome back To Vuprise');
       return { success: true, user: receivedUser };
     } catch (err) {
-      if (err.response?.data?.code === 'ACCOUNT_RESTRICTED') setRestriction(err.response.data.restriction || { status: 'permanent_ban' });
+      if (err.response?.data?.code === 'ACCOUNT_RESTRICTED') {
+        const restriction = err.response.data.restriction || { status: 'permanent_ban' };
+        // Keep the attempted email on the notice so the appeal form can be
+        // prefilled; the server independently verifies the account match.
+        const attemptedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+        setRestriction(attemptedEmail ? { ...restriction, email: attemptedEmail } : restriction);
+      }
       const msg = err.message || 'Login failed. Please check your credentials.';
       setAuthError(msg);
       const loginError = new Error(msg);

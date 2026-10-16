@@ -327,13 +327,6 @@ const PeoplePage = () => {
                           >
                             Accept
                           </Button>
-                          <Button
-                            variant="outlined"
-                            color="inherit"
-                            onClick={() => handleDeclineIncoming(req._id)}
-                          >
-                            Ignore
-                          </Button>
                         </Stack>
                       </Stack>
                     </Card>

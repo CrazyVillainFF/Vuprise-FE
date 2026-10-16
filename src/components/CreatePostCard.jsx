@@ -571,7 +571,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange,
               <Box
                 component="img"
                 src={imagePreview}
-                alt="Post upload preview"
+                alt="Preview of the image you are about to share"
                 sx={{
                   width: '100%',
                   maxHeight: 300,
@@ -651,6 +651,7 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange,
               color="primary"
               onClick={() => fileInputRef.current?.click()}
               disabled={submitting}
+              aria-label="Choose an image to share"
             >
               <ImageOutlinedIcon />
             </IconButton>

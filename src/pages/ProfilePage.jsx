@@ -7,6 +7,7 @@ import {
   Typography,
   Stack,
   Button,
+  ButtonBase,
   Grid,
   Chip,
   Divider,
@@ -37,20 +38,112 @@ import WorkOutlineOutlinedIcon from '@mui/icons-material/WorkOutlineOutlined';
 import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
 import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
+import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../theme/ThemeContext';
 import { userAPI, postAPI, connectionAPI } from '../services/api';
 import ConnectionButton from '../components/ConnectionButton';
-import PostCard from '../components/PostCard';
 import ImageUploadModal from '../components/ImageUploadModal';
-import { ProfileHeaderSkeleton, PostSkeleton } from '../components/LoadingSkeleton';
+import { ProfileHeaderSkeleton } from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { subscribeRealtime, watchPresence, unwatchPresence } from '../services/realtime';
 import SpotlightCard from '../components/reactbits/SpotlightCard';
 import ReportDialog from '../components/ReportDialog';
 import { formatLastSeen } from '../utils/presenceTime';
+
+const MEDIA_GRID_SX = {
+  display: 'grid',
+  gridTemplateColumns: {
+    xs: 'repeat(3, minmax(0, 1fr))',
+    sm: 'repeat(3, minmax(0, 1fr))',
+    md: 'repeat(4, minmax(0, 1fr))',
+    lg: 'repeat(5, minmax(0, 1fr))'
+  },
+  gap: { xs: 0.5, sm: 0.75, md: 1 }
+};
+
+const ProfileMediaTile = ({ post, onOpen }) => {
+  const isVideo = post.mediaType === 'video' && Boolean(post.videoUrl);
+  const isReel = isVideo && post.videoPresentation === 'reel';
+  const thumbnail = post.videoThumbnail || (isVideo ? '' : post.image || '');
+  const label = (post.content || '').replace(/\s+/g, ' ').trim();
+  return (
+    <ButtonBase
+      onClick={() => onOpen(post)}
+      aria-label={`Open ${isReel ? 'Reel' : 'post'}: ${(label || (isVideo ? 'video' : 'image')).slice(0, 80)}`}
+      sx={{
+        position: 'relative',
+        display: 'block',
+        width: '100%',
+        aspectRatio: '1 / 1',
+        overflow: 'hidden',
+        borderRadius: 2,
+        bgcolor: 'action.hover',
+        border: 1,
+        borderColor: 'divider',
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 }
+      }}
+    >
+      {thumbnail ? (
+        <Box
+          component="img"
+          src={thumbnail}
+          alt=""
+          loading="lazy"
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      ) : (
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 1.25,
+            textAlign: 'center',
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02))'
+              : 'linear-gradient(135deg, rgba(0,0,0,.06), rgba(0,0,0,.02))'
+          }}
+        >
+          {isVideo ? (
+            <PlayArrowRoundedIcon sx={{ fontSize: 44, color: 'text.secondary' }} />
+          ) : (
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.secondary', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflowWrap: 'anywhere' }}
+            >
+              {label || 'Post'}
+            </Typography>
+          )}
+        </Box>
+      )}
+      {isVideo && Boolean(thumbnail) && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            bgcolor: 'rgba(0,0,0,.55)',
+            color: '#fff'
+          }}
+        >
+          <PlayArrowRoundedIcon sx={{ fontSize: 16 }} />
+        </Box>
+      )}
+    </ButtonBase>
+  );
+};
 
 const ProfilePage = () => {
   const { id } = useParams();
@@ -257,12 +350,32 @@ const ProfilePage = () => {
   const handleRelationshipStatusChange = (memberId, status) => {
     if (relationshipDialog === 'connects' && status === 'connected') {
       setRelationshipUsers((current) => current.filter((member) => String(member._id) !== String(memberId)));
+      // Accepting turns a pending request into an accepted connection; the
+      // "Connects" metric counts both, so only "Connections" grows here.
       setProfile((current) => current ? {
         ...current,
-        connectsCount: Math.max(0, (current.connectsCount || 0) - 1),
         connectionsCount: (current.connectionsCount || 0) + 1
       } : current);
     }
+  };
+
+  const handleProfileConnectionStatusChange = (status) => {
+    setProfile((current) => {
+      if (!current) return current;
+      const previous = current.connectionStatus;
+      if (status === previous) return current;
+      const next = { ...current, connectionStatus: status };
+      if (status === 'connected') {
+        // A new accepted connection counts toward both metrics.
+        next.connectsCount = (current.connectsCount || 0) + 1;
+        next.connectionsCount = (current.connectionsCount || 0) + 1;
+      } else if (previous === 'connected') {
+        // Disconnecting removes an accepted connection from both metrics.
+        next.connectsCount = Math.max(0, (current.connectsCount || 0) - 1);
+        next.connectionsCount = Math.max(0, (current.connectionsCount || 0) - 1);
+      }
+      return next;
+    });
   };
 
   const handleBlockAccount = async () => {
@@ -328,6 +441,10 @@ const ProfilePage = () => {
     );
   }
 
+  const hasSidebar = Boolean(
+    (profile.skills && profile.skills.length > 0) || (profile.education && profile.education.length > 0)
+  );
+
   return (
     <Container maxWidth="lg">
       {/* Cover and Main Profile Card */}
@@ -336,7 +453,7 @@ const ProfilePage = () => {
         {/* Cover Banner */}
         <Box
           sx={{
-            height: { xs: 124, sm: 158, md: 184 },
+            height: { xs: 104, sm: 132, md: 152 },
             backgroundImage: profile.coverImage
               ? `url(${profile.coverImage})`
               : 'linear-gradient(135deg, rgba(0,0,0,.88) 0%, rgba(0,0,0,.24) 100%)',
@@ -349,6 +466,7 @@ const ProfilePage = () => {
             <Tooltip title="Update Cover Banner">
               <IconButton
                 onClick={() => setCoverModalOpen(true)}
+                aria-label="Update cover banner"
                 sx={{
                   position: 'absolute',
                   top: 16,
@@ -365,15 +483,15 @@ const ProfilePage = () => {
         </Box>
 
         {/* Profile Details Container */}
-        <Box sx={{ px: { xs: 2.5, sm: 4 }, pb: 3, pt: 0, position: 'relative' }}>
+        <Box sx={{ px: { xs: 2.5, sm: 4 }, pb: 2.5, pt: 0, position: 'relative' }}>
           {/* Avatar with absolute positioning */}
-          <Box sx={{ position: 'relative', display: 'inline-block', mt: { xs: -6, sm: -8 } }}>
+          <Box sx={{ position: 'relative', display: 'inline-block', mt: { xs: -5, sm: -7 } }}>
             <Avatar
               src={profile.profilePicture}
               alt={profile.name}
               sx={{
-                width: { xs: 96, sm: 130, md: 140 },
-                height: { xs: 96, sm: 130, md: 140 },
+                width: { xs: 84, sm: 108, md: 116 },
+                height: { xs: 84, sm: 108, md: 116 },
                 border: (theme) => `4px solid ${theme.palette.background.paper}`,
                 boxShadow: 3,
               }}
@@ -385,6 +503,7 @@ const ProfilePage = () => {
                 <IconButton
                   size="small"
                   onClick={() => setAvatarModalOpen(true)}
+                  aria-label="Update profile picture"
                   sx={{
                     position: 'absolute',
                     bottom: 4,
@@ -439,7 +558,7 @@ const ProfilePage = () => {
                   userName={profile.name}
                   initialStatus={profile.connectionStatus}
                   connectionId={profile.connectionId}
-                  onStatusChange={(status) => setProfile((current) => current ? ({ ...current, connectionStatus: status }) : current)}
+                  onStatusChange={handleProfileConnectionStatusChange}
                 />
                 {isAuthenticated && (
                   <Button variant="outlined" color="inherit" onClick={() => navigate(`/messages?contact=${profile._id}`)}>
@@ -465,7 +584,7 @@ const ProfilePage = () => {
           </Stack>
 
           {/* Name & Headline */}
-          <Box sx={{ mt: 2 }}>
+          <Box sx={{ mt: 1.5 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em">
                 {profile.name}
@@ -532,7 +651,7 @@ const ProfilePage = () => {
 
       {/* Main Grid: Details on Left, Side Details on Right */}
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 8 }}>
+        <Grid size={{ xs: 12, md: hasSidebar ? 8 : 12 }}>
           {/* About Section */}
           <Card sx={{ p: 3, mb: 3 }}>
               <Typography variant="h6" fontWeight={700} gutterBottom>
@@ -576,46 +695,10 @@ const ProfilePage = () => {
             </Card>
           )}
 
-          {/* Published Posts Stream */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
-              Activity & Discussions ({posts.length})
-            </Typography>
-            {loadingPosts ? (
-              <Stack spacing={2}>
-                <PostSkeleton />
-                <PostSkeleton />
-              </Stack>
-            ) : postsError ? (
-              <ErrorState title="Activity unavailable" message={postsError} onRetry={() => {
-                setLoadingPosts(true);
-                postAPI.getUserPosts(profileUserId).then((res) => setPosts(res.data.posts || [])).catch(() => setPostsError('Unable to load this member’s activity. Please try again.')).finally(() => setLoadingPosts(false));
-              }} />
-            ) : posts.length > 0 ? (
-              <Stack spacing={0}>
-                {posts.map((post) => (
-                  <PostCard
-                    key={post._id}
-                    post={{ ...post, connectionStatus: profile.connectionStatus }}
-                    onPostDeleted={(pId) => setPosts((prev) => prev.filter((p) => p._id !== pId))}
-                  />
-                ))}
-              </Stack>
-            ) : profile.privateAccount && profile.connectionStatus !== 'connected' && !isOwnProfile ? (
-              <Alert severity="info" sx={{ borderRadius: 2 }}>
-                This account is private. Only accepted connections can view its posts.
-              </Alert>
-            ) : (
-              <EmptyState
-                title="No posts published yet"
-                description={`${profile.name} has not published any discussions yet.`}
-              />
-            )}
-          </Box>
         </Grid>
 
         {/* Sidebar Info (Skills, Education) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        {hasSidebar && <Grid size={{ xs: 12, md: 4 }}>
           {/* Skills Card */}
           {profile.skills && profile.skills.length > 0 && (
             <Card sx={{ p: 3, mb: 3 }}>
@@ -666,8 +749,53 @@ const ProfilePage = () => {
               </Stack>
             </Card>
           )}
-        </Grid>
+        </Grid>}
       </Grid>
+
+      {/* Media Grid: Posts & Reels */}
+      <Box sx={{ mt: 1 }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+          <GridViewRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+          <Typography variant="h6" fontWeight={700}>
+            Posts & Reels ({posts.length})
+          </Typography>
+        </Stack>
+        {loadingPosts ? (
+          <Box sx={MEDIA_GRID_SX} aria-label="Loading media">
+            {Array.from({ length: 9 }).map((_, index) => (
+              <Box key={index} sx={{ aspectRatio: '1 / 1', borderRadius: 2, bgcolor: 'action.hover' }} />
+            ))}
+          </Box>
+        ) : postsError ? (
+          <ErrorState title="Activity unavailable" message={postsError} onRetry={() => {
+            setLoadingPosts(true);
+            postAPI.getUserPosts(profileUserId).then((res) => setPosts(res.data.posts || [])).catch(() => setPostsError('Unable to load this member’s activity. Please try again.')).finally(() => setLoadingPosts(false));
+          }} />
+        ) : posts.length > 0 ? (
+          <Box sx={MEDIA_GRID_SX}>
+            {posts.map((post) => (
+              <ProfileMediaTile
+                key={post._id}
+                post={post}
+                onOpen={(selected) => navigate(
+                  selected.mediaType === 'video' && selected.videoPresentation === 'reel'
+                    ? `/reels?videoId=${selected._id}`
+                    : `/post/${selected._id}`
+                )}
+              />
+            ))}
+          </Box>
+        ) : profile.privateAccount && profile.connectionStatus !== 'connected' && !isOwnProfile ? (
+          <Alert severity="info" sx={{ borderRadius: 2 }}>
+            This account is private. Only accepted connections can view its posts.
+          </Alert>
+        ) : (
+          <EmptyState
+            title="No posts published yet"
+            description={`${profile.name} has not published any discussions yet.`}
+          />
+        )}
+      </Box>
 
       <Dialog open={Boolean(relationshipDialog)} onClose={() => setRelationshipDialog('')} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontWeight: 800 }}>{relationshipDialog === 'connects' ? 'Connects' : 'Connections'}</DialogTitle>

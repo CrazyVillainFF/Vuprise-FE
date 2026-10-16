@@ -14,6 +14,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
 import LandingPage from './pages/LandingPage';
+import FaqPage from './pages/FaqPage';
+import PrivacyPage from './pages/PrivacyPage';
+import ThankYouPage from './pages/ThankYouPage';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -34,6 +37,9 @@ import SupportRequestPage from './pages/SupportRequestPage';
 import ReelsPage from './pages/ReelsPage';
 import ModerationNoticeLayer from './components/ModerationNoticeLayer';
 import StatusMark from './components/reactbits/StatusMark';
+import RouteMeta from './components/RouteMeta';
+import ConsentBanner from './components/ConsentBanner';
+import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
 
 const GhostCursor = React.lazy(() => import('./components/reactbits/GhostCursor'));
 
@@ -94,12 +100,18 @@ function App() {
         <PublishingProvider>
         <NotificationProvider>
           <BrowserRouter>
+            <RouteMeta />
+            <AnalyticsRouteTracker />
+            <ConsentBanner />
             <Routes>
               {/* Public Root / Landing */}
               <Route element={<MainLayout />}>
                 <Route path="/" element={<RootRedirect />} />
-                <Route path="/satisfied-games" element={<SatisfiedGamesPage />} />
+                <Route path="/faq" element={<FaqPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/support/request" element={<SupportRequestPage />} />
+                <Route path="/satisfied-games" element={<SatisfiedGamesPage />} />
+                <Route path="/thank-you" element={<ThankYouPage />} />
               </Route>
 
               {/* Authentication Routes */}

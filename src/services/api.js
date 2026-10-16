@@ -68,7 +68,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   updatePassword: (data) => api.put('/auth/updatepassword', data),
-  requestPasswordReset: (email) => api.post('/auth/password-reset/request', { email }),
+  requestPasswordReset: (email, extras = {}) => api.post('/auth/password-reset/request', { email, ...extras }),
   completePasswordReset: (data) => api.post('/auth/password-reset/complete', data),
   acknowledgeWarning: (warningId) => api.post(`/auth/warnings/${warningId}/acknowledge`),
 };
@@ -79,8 +79,15 @@ export const adminAPI = {
   user: (id) => api.get(`/admin/users/${id}`),
   userPosts: (id, params) => api.get(`/admin/users/${id}/posts`, { params }),
   setVerification: (id, isVerifiedAccount, verificationBadgeColor) => api.put(`/admin/users/${id}/verification`, { isVerifiedAccount, verificationBadgeColor }),
-  broadcastMessage: (data) => api.post('/admin/messages/broadcast', data),
+  broadcastMessage: (data, config = {}) => {
+    const isFormData = data instanceof FormData;
+    return api.post('/admin/messages/broadcast', data, {
+      ...config,
+      headers: { ...(config.headers || {}), ...(isFormData ? { 'Content-Type': 'multipart/form-data' } : {}) },
+    });
+  },
   broadcastMessages: (params) => api.get('/admin/messages/broadcast', { params }),
+  emailUsers: (data) => api.post('/admin/email/broadcast', data),
   updateBroadcastMessage: (id, text) => api.patch(`/admin/messages/broadcast/${id}`, { text }),
   temporaryBan: (id, data) => api.post(`/admin/users/${id}/temporary-ban`, data),
   permanentBan: (id, data) => api.post(`/admin/users/${id}/permanent-ban`, data),
