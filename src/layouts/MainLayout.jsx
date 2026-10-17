@@ -18,9 +18,17 @@ const MainLayout = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isMobileMessages = location.pathname === '/messages' && isMobile;
+  const isMessagesPage = location.pathname === '/messages';
   const isReelsPage = location.pathname === '/reels';
+  const isFixedViewport = isMessagesPage || isReelsPage;
   const { incomingToast, dismissIncomingToast } = useNotifications();
+
+  useEffect(() => {
+    if (!isMessagesPage) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isMessagesPage]);
 
   useEffect(() => {
     if (!welcomeMessage) return undefined;
@@ -42,9 +50,9 @@ const MainLayout = () => {
 
   return (
     <Box sx={{
-      minHeight: isMobileMessages || isReelsPage ? 0 : '100dvh',
-      height: isMobileMessages || isReelsPage ? '100dvh' : undefined,
-      overflow: isMobileMessages || isReelsPage ? 'hidden' : undefined,
+      minHeight: isFixedViewport ? 0 : '100dvh',
+      height: isFixedViewport ? '100dvh' : undefined,
+      overflow: isFixedViewport ? 'hidden' : undefined,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -57,21 +65,21 @@ const MainLayout = () => {
         component="main"
         sx={{
           flex: 1,
-          minHeight: isMobileMessages || isReelsPage ? 0 : undefined,
-          display: isMobileMessages || isReelsPage ? 'flex' : undefined,
-          flexDirection: isMobileMessages || isReelsPage ? 'column' : undefined,
-          overflow: isMobileMessages || isReelsPage ? 'hidden' : undefined,
+          minHeight: isFixedViewport ? 0 : undefined,
+          display: isFixedViewport ? 'flex' : undefined,
+          flexDirection: isFixedViewport ? 'column' : undefined,
+          overflow: isFixedViewport ? 'hidden' : undefined,
           width: '100%',
           minWidth: 0,
           position: 'relative',
           zIndex: 1,
-          py: isReelsPage ? 0 : isMobileMessages ? 1.5 : { xs: 2.5, md: 4 },
-          pb: isReelsPage ? 0 : isMobileMessages ? 'calc(62px + env(safe-area-inset-bottom))' : { xs: 'calc(62px + env(safe-area-inset-bottom) + 24px)', lg: 5 },
+          py: isReelsPage ? 0 : isMessagesPage ? (isMobile ? 1.5 : 2) : { xs: 2.5, md: 4 },
+          pb: isReelsPage ? 0 : isMessagesPage ? (isMobile ? 'calc(62px + env(safe-area-inset-bottom))' : 2.5) : { xs: 'calc(62px + env(safe-area-inset-bottom) + 24px)', lg: 5 },
         }}
       >
         <Outlet />
       </Box>
-      {!isMobileMessages && !isReelsPage && <SiteFooter />}
+      {!isFixedViewport && <SiteFooter />}
       <Box
         aria-live="polite"
         aria-atomic="true"

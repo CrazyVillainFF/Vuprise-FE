@@ -62,7 +62,7 @@ const CountryRegionSelector = ({ value, onChange, disabled = false, required = t
         loadingText="Loading countries…"
         autoHighlight
         renderInput={(params) => (
-          <TextField {...params} label="Country" required={required} inputProps={{ ...params.inputProps, autoComplete: 'country-name' }} />
+          <TextField {...params} label="Country" required={required} slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps?.htmlInput, autoComplete: 'country-name' } }} />
         )}
       />
 
@@ -91,7 +91,7 @@ const CountryRegionSelector = ({ value, onChange, disabled = false, required = t
             label="State / Province / Region"
             required={required}
             helperText={country && !regions.length ? 'This country has no region list in our dataset. Enter your region name.' : undefined}
-            inputProps={{ ...params.inputProps, autoComplete: 'address-level1' }}
+            slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps?.htmlInput, autoComplete: 'address-level1' } }}
           />
         )}
       />

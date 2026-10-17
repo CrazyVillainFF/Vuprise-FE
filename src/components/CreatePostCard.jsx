@@ -555,13 +555,13 @@ const CreatePostCard = ({ onPostCreated, showTrigger = true, open, onOpenChange,
             fullWidth
             placeholder="Share an achievement, architectural perspective, or industry question..."
             value={content}
-            inputProps={{ maxLength: 5000, 'aria-label': 'Post caption' }}
             onChange={(e) => setContent(e.target.value)}
             variant="standard"
             slotProps={{ input: {
               disableUnderline: true,
               sx: { fontSize: '1.05rem', lineHeight: 1.6 }
-            }}}
+            },
+            htmlInput: { maxLength: 5000, 'aria-label': 'Post caption' } }}
           />
 
           {/* Hidden media input. Previews use object URLs instead of reading video bytes into JS memory. */}

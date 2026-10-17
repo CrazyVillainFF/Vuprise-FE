@@ -141,7 +141,9 @@ export const NotificationProvider = ({ children }) => {
 
     // Poll every 30 seconds if authenticated
     if (isAuthenticated) {
-      const interval = setInterval(fetchNotifications, 15000);
+      const interval = setInterval(() => {
+        if (document.visibilityState !== 'hidden') fetchNotifications();
+      }, 30000);
       const refreshOnFocus = () => { if (document.visibilityState === 'visible') fetchNotifications(); };
       const refreshOnRequest = () => fetchNotifications();
       document.addEventListener('visibilitychange', refreshOnFocus);
@@ -157,9 +159,17 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     fetchUnreadMessages();
     if (isAuthenticated) {
-      const interval = setInterval(fetchUnreadMessages, 15000);
-      return () => clearInterval(interval);
+      const interval = setInterval(() => {
+        if (document.visibilityState !== 'hidden') fetchUnreadMessages();
+      }, 30000);
+      const refreshOnFocus = () => { if (document.visibilityState === 'visible') fetchUnreadMessages(); };
+      document.addEventListener('visibilitychange', refreshOnFocus);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', refreshOnFocus);
+      };
     }
+    return undefined;
   }, [fetchUnreadMessages, isAuthenticated]);
 
   const unreadMessageCount = Object.values(unreadMessagesByConversation)

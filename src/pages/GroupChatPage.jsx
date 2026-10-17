@@ -159,7 +159,7 @@ export default function GroupChatPage({ groupId, onBack, showBackButton = false,
 
   useEffect(() => {
     if (loading || !group) return undefined;
-    const interval = window.setInterval(pollNewMessages, 12000);
+    const interval = window.setInterval(pollNewMessages, 30000);
     const onVisibility = () => { if (document.visibilityState === 'visible') pollNewMessages(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibility); };

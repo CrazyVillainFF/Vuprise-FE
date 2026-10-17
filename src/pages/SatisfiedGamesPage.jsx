@@ -118,7 +118,7 @@ const SatisfiedGamesPage = () => {
             <label className="satisfied-select">Star shape<select value={settings.starShape} onChange={(e) => update('starShape', e.target.value)}><option value="round">Round</option><option value="diamond">Diamond</option><option value="square">Square</option><option value="cross">Cross</option></select></label>
           </Stack>}
           {activeGame === 'shatter-type' && <Stack spacing={1.5}>
-            <TextField size="small" label="Headline" value={settings.text} inputProps={{ maxLength: 28 }} onChange={(e) => update('text', e.target.value)} />
+            <TextField size="small" label="Headline" value={settings.text} slotProps={{ htmlInput: { maxLength: 28 } }} onChange={(e) => update('text', e.target.value)} />
             <FieldSlider label="Text size" value={settings.size} min={32} max={96} step={2} onChange={(v) => update('size', v)} />
             <FieldSlider label="Shatter speed" value={settings.speed} min={0.5} max={2} step={0.1} onChange={(v) => update('speed', v)} />
             <FieldSlider label="Shard size" value={settings.shardSize} min={12} max={38} step={1} onChange={(v) => update('shardSize', v)} />

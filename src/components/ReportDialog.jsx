@@ -62,7 +62,7 @@ export default function ReportDialog({ open, onClose, reportedUser, reportedPost
             label="Why are you reporting this?"
             value={reason}
             onChange={(event) => setReason(event.target.value.slice(0, 1000))}
-            inputProps={{ maxLength: 1000, minLength: 10 }}
+            slotProps={{ htmlInput: { maxLength: 1000, minLength: 10 } }}
             helperText={`${reason.trim().length}/1000 · at least 10 characters`}
           />
           <EvidencePhotoPicker files={evidenceFiles} onChange={setEvidenceFiles} disabled={busy}/>

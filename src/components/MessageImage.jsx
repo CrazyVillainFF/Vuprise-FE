@@ -6,7 +6,7 @@ import BrokenImageRoundedIcon from '@mui/icons-material/BrokenImageRounded';
  * Renders a chat/official-message attachment responsively and swaps to a
  * graceful fallback when the stored image can no longer be loaded.
  */
-export default function MessageImage({ src, alt = '', maxWidth = 360, maxHeight = 360, sx }) {
+export default function MessageImage({ src, alt = '', maxWidth = 360, maxHeight = 360, sx, onLoad }) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => { setFailed(false); }, [src]);
@@ -37,6 +37,7 @@ export default function MessageImage({ src, alt = '', maxWidth = 360, maxHeight 
       loading="lazy"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
+      onLoad={onLoad}
       sx={{ display: 'block', width: `min(100%, ${maxWidth}px)`, maxHeight, objectFit: 'contain', borderRadius: 1.5, ...sx }}
     />
   );

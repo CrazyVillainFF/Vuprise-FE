@@ -13,6 +13,21 @@ const api = axios.create({
   timeout: 90000,
 });
 
+// Concurrent identical GET requests are coalesced into a single network call.
+// React StrictMode double-invokes mount effects in development, and several
+// components refresh the same resource at once (inbox list, unread badges,
+// toasts), which produced duplicate parallel requests. The entry clears as
+// soon as the request settles, so interval polling and later refreshes are
+// unaffected. Only GETs are touched; requests with a caller-supplied signal
+// are left alone because they need per-caller cancellation.
+const inFlightGets = new Map();
+const getRequestKey = (config) => [
+  config.baseURL || '',
+  config.url || '',
+  config.params ? JSON.stringify(config.params) : '',
+  config.headers?.Authorization || ''
+].join('|');
+
 // Request Interceptor: Attach JWT Token
 api.interceptors.request.use(
   (config) => {
@@ -20,6 +35,22 @@ api.interceptors.request.use(
     const token = localStorage.getItem('nexora_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if ((config.method || '').toLowerCase() === 'get' && !config.signal) {
+      const key = getRequestKey(config);
+      const shared = inFlightGets.get(key);
+      if (shared) {
+        config.adapter = () => shared.then((response) => ({ ...response, config }));
+      } else {
+        const adapter = axios.getAdapter(config.adapter || api.defaults.adapter);
+        config.adapter = (adapterConfig) => {
+          const request = adapter(adapterConfig);
+          inFlightGets.set(key, request);
+          const clear = () => { if (inFlightGets.get(key) === request) inFlightGets.delete(key); };
+          request.then(clear, clear);
+          return request;
+        };
+      }
     }
     return config;
   },
@@ -103,6 +134,24 @@ export const supportAPI = {
   submit: (data) => api.post('/support/requests', data, {
     headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
   }),
+};
+
+// ================= AI CHAT APIs =================
+// Vuprise AI lives inside the Messages section; the backend proxies the AI
+// service so the browser only ever talks to /api/ai. Image generation and
+// vision replies can take a while, so sending uses a 60-second timeout.
+export const aiAPI = {
+  status: () => api.get('/ai/status'),
+  listConversations: () => api.get('/ai/conversations'),
+  createConversation: () => api.post('/ai/conversations'),
+  getConversation: (id) => api.get(`/ai/conversations/${id}`),
+  sendMessage: (id, message, attachments = [], config = {}) => api.post(`/ai/conversations/${id}/messages`, { message, attachments }, { timeout: 60000, ...config }),
+  uploadAttachments: (id, formData, config = {}) => api.post(`/ai/conversations/${id}/attachments`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+    ...config,
+  }),
+  deleteConversation: (id) => api.delete(`/ai/conversations/${id}`),
 };
 
 // ================= USER APIs =================

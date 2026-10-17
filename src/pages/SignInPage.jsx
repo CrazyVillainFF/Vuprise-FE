@@ -126,9 +126,8 @@ const SignInPage = () => {
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
               autoComplete="off"
-              tabIndex={-1}
               sx={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-              inputProps={{ 'aria-hidden': true }}
+              slotProps={{ htmlInput: { 'aria-hidden': true, tabIndex: -1 } }}
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: -1.5 }}>
               <Typography component={Link} to="/forgot-password" variant="body2" color="primary" sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>

@@ -45,12 +45,11 @@ const LocationOnboardingDialog = () => {
     <Dialog
       open={open}
       onClose={() => {}}
-      disableEscapeKeyDown
       aria-labelledby="location-onboarding-title"
       aria-describedby="location-onboarding-description"
       fullWidth
       maxWidth="xs"
-      PaperProps={{ sx: { borderRadius: 3, mx: 2, maxHeight: 'calc(100dvh - 32px)' } }}
+      slotProps={{ paper: { sx: { borderRadius: 3, mx: 2, maxHeight: 'calc(100dvh - 32px)' } } }}
     >
       <DialogTitle id="location-onboarding-title" sx={{ fontWeight: 800, pb: 0.5 }}>
         Complete Your Profile

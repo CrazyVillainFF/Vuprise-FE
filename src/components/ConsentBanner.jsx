@@ -42,7 +42,9 @@ const ConsentBanner = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            zIndex: 1600,
+            // Keep the notice above page chrome but below MUI modals (1300) and
+            // snackbars (1400) so dialogs and prompts stay operable.
+            zIndex: (theme) => theme.zIndex.modal - 1,
             borderTop: 1,
             borderColor: 'divider',
             borderRadius: 0,
@@ -83,7 +85,7 @@ const ConsentBanner = () => {
             <Stack spacing={2}>
               <Box>
                 <FormControlLabel
-                  control={<Switch checked disabled inputProps={{ 'aria-label': 'Essential storage, always on' }} />}
+                  control={<Switch checked disabled slotProps={{ input: { 'aria-label': 'Essential storage, always on' } }} />}
                   label={<Typography fontWeight={700}>Essential</Typography>}
                 />
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ ml: 6, mt: -1 }}>
@@ -92,7 +94,7 @@ const ConsentBanner = () => {
               </Box>
               <Box>
                 <FormControlLabel
-                  control={<Switch checked={analyticsChoice} onChange={(event) => setAnalyticsChoice(event.target.checked)} inputProps={{ 'aria-label': 'Analytics' }} />}
+                  control={<Switch checked={analyticsChoice} onChange={(event) => setAnalyticsChoice(event.target.checked)} slotProps={{ input: { 'aria-label': 'Analytics' } }} />}
                   label={<Typography fontWeight={700}>Analytics</Typography>}
                 />
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ ml: 6, mt: -1 }}>

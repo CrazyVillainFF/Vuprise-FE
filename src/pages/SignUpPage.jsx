@@ -147,9 +147,8 @@ const SignUpPage = () => {
             value={formData.website}
             onChange={handleChange}
             autoComplete="off"
-            tabIndex={-1}
             sx={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-            inputProps={{ 'aria-hidden': true }}
+            slotProps={{ htmlInput: { 'aria-hidden': true, tabIndex: -1 } }}
           />
           <Stack spacing={2}>
             <TextField

@@ -27,6 +27,8 @@ import Badge from '@mui/material/Badge';
 import TypingIndicator from '../components/TypingIndicator';
 import { sendTyping, subscribeRealtime, watchPresence, unwatchPresence } from '../services/realtime';
 import GroupChatPanel from './GroupChatPage';
+import AiChatPanel from '../components/AiChatPanel';
+import ReactableMark from '../components/ReactableMark';
 import MessageInteractions from '../components/MessageInteractions';
 import { formatLastSeen } from '../utils/presenceTime';
 import VerifiedAccountBadge from '../components/VerifiedAccountBadge';
@@ -70,6 +72,7 @@ const MessagesPage = () => {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [active, setActive] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [attachment, setAttachment] = useState(null);
@@ -95,7 +98,9 @@ const MessagesPage = () => {
   const [presenceByUser, setPresenceByUser] = useState({});
   const [presenceNow, setPresenceNow] = useState(() => Date.now());
   const [typingByScope, setTypingByScope] = useState({});
-  const bottomRef = useRef(null);
+  const threadRef = useRef(null);
+  const followBottomRef = useRef(true);
+  const previousMessageCountRef = useRef(0);
   const searchRef = useRef(null);
   const composerInputRef = useRef(null);
   const legacySyncsRef = useRef(new Set());
@@ -166,8 +171,11 @@ const MessagesPage = () => {
   ].filter(Boolean), [contacts, conversations, groups]);
   useEffect(() => {
     watchPresence(presenceTargets, 'messages');
-    return () => unwatchPresence('messages');
   }, [presenceTargets]);
+  // Presence scopes stay registered across target refreshes (realtime.js
+  // already skips unchanged watch payloads) and are only released on unmount,
+  // so a list refresh sends one watch update instead of an unwatch + watch pair.
+  useEffect(() => () => unwatchPresence('messages'), []);
 
   useEffect(() => {
     if (!attachment) { setAttachmentPreview(''); return undefined; }
@@ -493,13 +501,14 @@ const MessagesPage = () => {
     // Keep the inbox list live so a first message from a non-connected member
     // appears without requiring a full page reload.
     const interval = window.setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
       try {
         const response = await messageAPI.getConversations();
         setConversations(response.data.conversations || []);
       } catch {
         // Keep the current inbox if a background refresh fails.
       }
-    }, 15000);
+    }, 30000);
     return () => window.clearInterval(interval);
   }, [user?._id]);
 
@@ -507,26 +516,62 @@ const MessagesPage = () => {
     const selectedConversation = active;
     if (!selectedConversation) return undefined;
     loadMessages(selectedConversation._id, privateKey, selectedConversation.peer.encryptionSigningPublicKey);
-    const interval = window.setInterval(async () => {
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
       loadMessages(selectedConversation._id, privateKey, selectedConversation.peer.encryptionSigningPublicKey);
-      try {
-        const response = await messageAPI.getConversations();
-        if (selectedConversationId.current === selectedConversation._id) {
-          setConversations(response.data.conversations || []);
-        }
-      } catch {
-        // The open conversation remains usable if refreshing the inbox list fails.
-      }
-    }, 6000);
+      messageAPI.getConversations()
+        .then((response) => {
+          if (selectedConversationId.current === selectedConversation._id) {
+            setConversations(response.data.conversations || []);
+          }
+        })
+        .catch(() => {
+          // The open conversation remains usable if refreshing the inbox list fails.
+        });
+    };
+    const interval = window.setInterval(refresh, 30000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
       messageRequestId.current += 1;
     };
   }, [active, privateKey, loadMessages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  }, [messages.length]);
+    followBottomRef.current = true;
+    previousMessageCountRef.current = 0;
+  }, [active?._id]);
+
+  const handleThreadScroll = () => {
+    const el = threadRef.current;
+    if (!el) return;
+    followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
+  const scrollThreadToBottom = (behavior = 'smooth') => {
+    const el = threadRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior });
+  };
+
+  const handleThreadImageLoad = () => {
+    if (!followBottomRef.current) return;
+    requestAnimationFrame(() => scrollThreadToBottom('auto'));
+  };
+
+  useEffect(() => {
+    if (!active) return;
+    const previousCount = previousMessageCountRef.current;
+    previousMessageCountRef.current = messages.length;
+    if (!messages.length) return;
+    const lastMessage = messages[messages.length - 1];
+    const lastIsOwn = String(lastMessage.sender?._id || lastMessage.sender) === String(user?._id);
+    const firstLoad = previousCount === 0;
+    if (firstLoad || followBottomRef.current || lastIsOwn) {
+      requestAnimationFrame(() => scrollThreadToBottom(firstLoad ? 'auto' : 'smooth'));
+    }
+  }, [messages, active, user?._id]);
 
   const openConversation = useCallback(async (contact) => {
     stopTyping();
@@ -775,11 +820,11 @@ const MessagesPage = () => {
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ minWidth: 0, minHeight: 0, height: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Paper variant="outlined" sx={{ flex: 1, minHeight: { xs: 0, md: 520 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px minmax(0, 1fr)' }, overflow: 'hidden' }}>
+        <Paper variant="outlined" sx={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '360px minmax(0, 1fr)' }, overflow: 'hidden' }}>
           <Box sx={{ p: 2, borderRight: { md: 1 }, borderColor: 'divider' }}>
             <Skeleton variant="text" width="60%" height={32} />
             <Skeleton variant="rounded" height={42} sx={{ my: 2 }} />
-            {[0, 1, 2, 3].map((item) => <Stack key={item} direction="row" spacing={1.5} alignItems="center" sx={{ py: 1.25 }}><Skeleton variant="circular" width={48} height={48} /><Box sx={{ flex: 1 }}><Skeleton variant="text" width="55%" /><Skeleton variant="text" width="80%" /></Box></Stack>)}
+            {[0, 1, 2, 3].map((item) => <Stack key={item} direction="row" spacing={1.5} sx={{ py: 1.25, alignItems: 'center' }}><Skeleton variant="circular" width={48} height={48} /><Box sx={{ flex: 1 }}><Skeleton variant="text" width="55%" /><Skeleton variant="text" width="80%" /></Box></Stack>)}
           </Box>
           <Box sx={{ display: { xs: 'none', md: 'grid' }, placeItems: 'center' }}><Skeleton variant="circular" width={48} height={48} /></Box>
         </Paper>
@@ -803,17 +848,16 @@ const MessagesPage = () => {
         sx={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: mobile && (active || activeGroup) ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', md: '360px minmax(0, 1fr)' },
-          height: '100%',
-          minHeight: { xs: 0, md: 520 },
+          gridTemplateColumns: mobile && (active || activeGroup || aiOpen) ? 'minmax(0, 1fr)' : { xs: 'minmax(0, 1fr)', md: '360px minmax(0, 1fr)' },
+          minHeight: 0,
           overflow: 'hidden',
           borderRadius: 3,
           bgcolor: 'background.paper',
         }}
       >
-        {(!mobile || (!active && !activeGroup)) && (
+        {(!mobile || (!active && !activeGroup && !aiOpen)) && (
           <Box sx={{ borderRight: { md: 1 }, borderColor: 'divider', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: 2, py: 1.75 }}>
+            <Stack direction="row" spacing={1.25} sx={{ px: 2, py: 1.75, alignItems: 'center' }}>
               <Avatar src={user?.profilePicture} alt="" sx={{ width: 38, height: 38 }}>{user?.name?.[0] || 'N'}</Avatar>
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography fontWeight={750} noWrap>{user?.name || 'Vuprise'}</Typography>
@@ -841,14 +885,34 @@ const MessagesPage = () => {
               />
             </Box>
             <Divider />
-            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ px: 2, py: 1.5 }}>
+            <Stack direction="row" spacing={1} sx={{ px: 2, py: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="subtitle2" fontWeight={750}>Chats</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{chatItems.length} {chatItems.length === 1 ? 'chat' : 'chats'}</Typography>
             </Stack>
             <Box sx={{ minHeight: 0, overflowY: 'auto', flex: 1 }}>
               {chatItems.length ? (
-                <List disablePadding>
-                  {chatItems.map((item) => {
+              <List disablePadding>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    selected={aiOpen && !active && !activeGroup}
+                    onClick={() => { setAiOpen(true); setActive(null); setActiveGroup(null); }}
+                    aria-label="Open Vuprise AI assistant chat"
+                    sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}
+                  >
+                    <ListItemAvatar sx={{ minWidth: 62 }}>
+                      <ReactableMark size={50} symbolOnly transparentBackground />
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={<Stack component="span" direction="row" gap={1} sx={{ minWidth: 0, alignItems: 'center' }}><Typography component="span" variant="body2" fontWeight={650} noWrap>Vuprise AI</Typography></Stack>}
+                      secondary="Ask anything, or generate an image"
+                      slotProps={{
+                        primary: { noWrap: true, fontWeight: 650 },
+                        secondary: { noWrap: true, fontSize: '0.78rem', color: 'text.secondary' },
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+                {chatItems.map((item) => {
                     if (item.type === 'official') {
                       const { conversation } = item;
                       const snippet = conversation.lastMessage?.deletedForEveryone
@@ -858,8 +922,8 @@ const MessagesPage = () => {
                       const officialTitle = 'Vuprise';
                       return <ListItem key={`official-${conversation._id}`} disablePadding><ListItemButton selected={String(active?._id) === String(conversation._id)} onClick={() => openOfficialConversation(conversation)} aria-label="Open official message from Vuprise" sx={{ minWidth: 0, minHeight: 76, px: 1.75, '&.Mui-selected': { bgcolor: 'action.selected' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' } }}>
                         <ListItemAvatar sx={{ minWidth: 62 }}><Avatar src="/vuprise-gold-profile.png" alt={officialTitle} sx={{ width: 50, height: 50 }}>V</Avatar></ListItemAvatar>
-                        <ListItemText primary={<Stack direction="row" alignItems="center" gap={1}><Typography component="span" noWrap fontWeight={750}>{officialTitle}</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={truncateChatPreview(snippet)} primaryTypographyProps={{ noWrap: true }} secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}/>
-                        <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>{item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}{unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}</Stack>
+                        <ListItemText primary={<Stack direction="row" gap={1} sx={{ alignItems: 'center' }}><Typography component="span" noWrap fontWeight={750}>{officialTitle}</Typography><VerifiedAccountBadge color="gold" size={16}/></Stack>} secondary={truncateChatPreview(snippet)} slotProps={{ primary: { noWrap: true }, secondary: { noWrap: true, fontSize: '0.78rem', color: 'text.secondary' } }}/>
+                        <Stack sx={{ pl: 1, pr: 1, minWidth: 0, alignItems: 'flex-end' }}>{item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}{unreadCount > 0 && <Box component="span" aria-label={`${unreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{unreadCount > 99 ? '99+' : unreadCount}</Box>}</Stack>
                       </ListItemButton></ListItem>;
                     }
                     if (item.type === 'group') {
@@ -885,10 +949,12 @@ const MessagesPage = () => {
                             <ListItemText
                               primary={group.name || 'Group chat'}
                               secondary={isGroupTyping ? <TypingIndicator label="Typing…" compact /> : groupSnippet ? `${senderName}: ${truncateChatPreview(groupSnippet)}` : groupPreview}
-                              primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
-                              secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
+                              slotProps={{
+                                primary: { noWrap: true, fontWeight: 650 },
+                                secondary: { noWrap: true, fontSize: '0.78rem', color: 'text.secondary' },
+                              }}
                             />
-                            <Stack alignItems="flex-end" sx={{ pl: 1, pr: 1, minWidth: 0 }}>
+                            <Stack sx={{ pl: 1, pr: 1, minWidth: 0, alignItems: 'flex-end' }}>
                               {item.activity && <Typography variant="caption" color="text.secondary" noWrap>{formatConversationTime(item.activity)}</Typography>}
                               {groupUnreadCount > 0 && <Box component="span" aria-label={`${groupUnreadCount} unread messages`} sx={{ mt: 0.5, minWidth: 20, height: 20, px: 0.65, display: 'grid', placeItems: 'center', borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: '0.7rem', lineHeight: 1, fontWeight: 800 }}>{groupUnreadCount > 99 ? '99+' : groupUnreadCount}</Box>}
                             </Stack>
@@ -948,14 +1014,16 @@ const MessagesPage = () => {
                     <ListItemAvatar sx={{ minWidth: { xs: 58, sm: 62 } }}><Badge overlap="circular" variant="dot" invisible={presenceByUser[contact._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ '& .MuiBadge-badge': { bgcolor: '#22c55e', color: '#22c55e', border: '2px solid', borderColor: 'background.paper' } }}><Avatar src={contact.profilePicture} alt="" sx={{ width: 50, height: 50 }}>{contact.name?.[0] || 'N'}</Avatar></Badge></ListItemAvatar>
                         <ListItemText
                           sx={{ minWidth: 0, mr: 0 }}
-                          primary={<Stack component="span" direction="row" alignItems="center" gap={1} sx={{ minWidth: 0 }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
+                          primary={<Stack component="span" direction="row" gap={1} sx={{ minWidth: 0, alignItems: 'center' }}><Typography component="span" variant="body2" fontWeight={650} noWrap>{conversation?.displayName || contact.name || 'Vuprise member'}</Typography>{isVerifiedAccount(badgeUser) && <VerifiedAccountBadge color={badgeUser.verificationBadgeColor} size={16}/>}</Stack>}
                           secondary={Object.keys(typingByScope[`conversation:${conversation?._id}`] || {}).length
                             ? <TypingIndicator label="Typing…" compact />
                             : hasMessages && conversation.lastMessage.text ? truncateChatPreview(preview) : preview}
-                          primaryTypographyProps={{ noWrap: true, fontWeight: 650 }}
-                          secondaryTypographyProps={{ noWrap: true, fontSize: '0.78rem', color: 'text.secondary' }}
+                          slotProps={{
+                            primary: { noWrap: true, fontWeight: 650 },
+                            secondary: { noWrap: true, fontSize: '0.78rem', color: 'text.secondary' },
+                          }}
                         />
-                        <Stack alignItems="flex-end" sx={{ pl: 1, pr: 0, minWidth: 0, flexShrink: 0 }}>
+                        <Stack sx={{ pl: 1, pr: 0, minWidth: 0, flexShrink: 0, alignItems: 'flex-end' }}>
                           <Typography variant="caption" color={presenceByUser[contact._id]?.state === 'online' ? 'text.primary' : 'text.secondary'} noWrap sx={{ display: { xs: 'none', sm: 'block' }, maxWidth: 118, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {presenceByUser[contact._id]?.state === 'online' ? 'Online' : presenceByUser[contact._id]?.state === 'offline' ? formatLastSeen(presenceByUser[contact._id]?.lastSeenAt, presenceNow) : ''}
                           </Typography>
@@ -968,7 +1036,7 @@ const MessagesPage = () => {
                   })}
                 </List>
               ) : (
-                <Stack alignItems="center" justifyContent="center" sx={{ px: 3, py: 5, textAlign: 'center' }}>
+                <Stack sx={{ px: 3, py: 5, textAlign: 'center', alignItems: 'center', justifyContent: 'center' }}>
                   <Typography fontWeight={700}>{orderedContacts.length ? 'No matches' : 'No chats yet'}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     {orderedContacts.length || groups.length ? 'Try a different name.' : 'Your conversations and group chats will appear here.'}
@@ -979,9 +1047,11 @@ const MessagesPage = () => {
           </Box>
         )}
 
-        {(!mobile || active || activeGroup) && (
+        {(!mobile || active || activeGroup || aiOpen) && (
           <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
-            {activeGroup ? (
+            {aiOpen && !active && !activeGroup ? (
+              <AiChatPanel showBackButton={mobile} onBack={() => setAiOpen(false)} />
+            ) : activeGroup ? (
               <GroupChatPanel
                 key={activeGroup._id}
                 groupId={activeGroup._id}
@@ -992,7 +1062,7 @@ const MessagesPage = () => {
               />
             ) : active ? (
               <>
-                <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0 }}>
+                <Stack direction="row" spacing={1.25} sx={{ px: { xs: 1, sm: 2 }, py: 1.4, borderBottom: 1, borderColor: 'divider', minWidth: 0, alignItems: 'center' }}>
                   {mobile && <IconButton aria-label="Back to chats" onClick={() => { stopTyping(); selectedConversationId.current = null; setActive(null); setMessages([]); }} size="small"><ArrowBackRoundedIcon /></IconButton>}
                   <ButtonBase
                     onClick={() => { if (!active.isOfficialBroadcast) navigate(`/profile/${active.peer._id}`); }}
@@ -1001,7 +1071,7 @@ const MessagesPage = () => {
                   >
                     <Badge overlap="circular" variant="dot" invisible={active.isOfficialBroadcast || presenceByUser[active.peer._id]?.state !== 'online'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} sx={{ '& .MuiBadge-badge': { bgcolor: '#22c55e', color: '#22c55e', border: '2px solid', borderColor: 'background.paper' } }}><Avatar src={active.isOfficialBroadcast ? '/vuprise-gold-profile.png' : active.peer.profilePicture} alt="" sx={{ width: 42, height: 42 }}>{active.peer.name?.[0] || 'N'}</Avatar></Badge>
                     <Box sx={{ minWidth: 0 }}>
-                      <Stack direction="row" alignItems="center" gap={1}>
+                      <Stack direction="row" gap={1} sx={{ alignItems: 'center' }}>
                         <Typography variant="subtitle1" fontWeight={700} noWrap>{active.isOfficialBroadcast ? (active.officialViewerIsSender ? `To: ${active.officialRecipient?.name || active.peer.name || 'recipient'}` : 'Vuprise') : active.displayName || active.peer.name}</Typography>
                         {active.isOfficialBroadcast && !active.officialViewerIsSender
                           ? <VerifiedAccountBadge color="gold" size={17}/>
@@ -1011,7 +1081,7 @@ const MessagesPage = () => {
                     </Box>
                   </ButtonBase>
                 </Stack>
-                <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 1.5, sm: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.25, bgcolor: 'background.default' }} aria-live="polite" aria-label={`Conversation with ${active.peer.name}`}>
+                <Box ref={threadRef} onScroll={handleThreadScroll} sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', p: { xs: 1.5, sm: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.25, bgcolor: 'background.default' }} aria-live="polite" aria-label={`Conversation with ${active.peer.name}`}>
                   {loadingMessages && !messages.length ? <Stack spacing={1.25} sx={{ width: 'min(90%, 440px)', alignSelf: 'center', mt: 3 }}><Skeleton variant="rounded" width="62%" height={42} /><Skeleton variant="rounded" width="74%" height={42} sx={{ alignSelf: 'flex-end' }} /><Skeleton variant="rounded" width="55%" height={42} /></Stack> : null}
                   {messages.map((message) => {
                     const ownMessage = String(message.sender?._id || message.sender) === String(user._id);
@@ -1025,13 +1095,14 @@ const MessagesPage = () => {
                               {message.imageUrl && <MessageImage
                                 src={message.imageUrl}
                                 alt={message.text?.trim() ? message.text.trim().slice(0, 160) : active.isOfficialBroadcast ? 'Image attached to an official Vuprise message' : 'Image shared in chat'}
+                                onLoad={handleThreadImageLoad}
                                 sx={{ mb: message.text ? 0.8 : 0 }}
                               />}
                               {message.text && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{message.text}</Typography>}
                             </>}
                           </Paper>
                         </Box>
-                        <Stack direction="row" spacing={0.25} alignItems="center" justifyContent={ownMessage ? 'flex-end' : 'flex-start'} sx={{ mt: 0.25 }}>
+                        <Stack direction="row" spacing={0.25} sx={{ mt: 0.25, alignItems: 'center', justifyContent: ownMessage ? 'flex-end' : 'flex-start' }}>
                           <Typography variant="caption" color="text.secondary">
                             {formatTimestamp(message.createdAt)}{message.editedAt ? ' · Edited' : ''}{ownMessage ? ` · ${message.pending ? 'Sending…' : readByPeer ? 'Read' : 'Sent'}` : ''}
                           </Typography>
@@ -1047,10 +1118,9 @@ const MessagesPage = () => {
                     );
                   })}
                   {Object.keys(typingByScope[`conversation:${active._id}`] || {}).length > 0 && <TypingIndicator label={`${Object.values(typingByScope[`conversation:${active._id}`]).map((entry) => entry.name).join(', ')} typing`} sx={{ alignSelf: 'flex-start', minHeight: 22 }} />}
-                  <div ref={bottomRef} />
                 </Box>
                 {active.readOnly ? <Alert severity="info" sx={{ m: 1.25 }}>This is an official message from Vuprise. Replies are not available.</Alert> : <>
-                {attachment && <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider' }}><Box component="img" src={attachmentPreview} alt="Preview of the photo you are about to send" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
+                {attachment && <Stack direction="row" spacing={1} sx={{ px: 1.5, py: 0.75, borderTop: 1, borderColor: 'divider', alignItems: 'center' }}><Box component="img" src={attachmentPreview} alt="Preview of the photo you are about to send" sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} /><Typography variant="caption" noWrap sx={{ flex: 1 }}>{attachment.name}</Typography><Button size="small" onClick={() => { setAttachment(null); if (imageInputRef.current) imageInputRef.current.value = ''; }}>Remove</Button></Stack>}
                 <Box component="form" onSubmit={sendMessage} sx={{ p: { xs: 1, sm: 1.5 }, pb: 'max(12px, env(safe-area-inset-bottom))', borderTop: attachment ? 0 : 1, borderColor: 'divider', display: 'flex', gap: 0.5, alignItems: 'flex-end', bgcolor: 'background.paper' }}>
                   <input ref={imageInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleMessageImageSelect} aria-label="Attach an image" />
                   <IconButton aria-label="Attach image" onClick={() => imageInputRef.current?.click()} disabled={sending}><AttachFileRoundedIcon /></IconButton>
@@ -1076,7 +1146,7 @@ const MessagesPage = () => {
                 </>}
               </>
             ) : (
-              <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, minHeight: 0, p: 4, textAlign: 'center' }}>
+              <Stack sx={{ flex: 1, minHeight: 0, p: 4, textAlign: 'center', alignItems: 'center', justifyContent: 'center' }}>
                 <ChatBubbleOutlineRoundedIcon color="primary" sx={{ fontSize: 42, mb: 1.5 }} />
                 <Typography variant="h6" fontWeight={700}>Your messages</Typography>
               </Stack>
@@ -1146,7 +1216,7 @@ const MessagesPage = () => {
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               {groupDialogError && <Alert severity="error" onClose={() => setGroupDialogError('')}>{groupDialogError}</Alert>}
-              <Stack direction="row" spacing={1.5} alignItems="center">
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                 <input ref={groupIconInputRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={selectGroupIcon} aria-label="Choose a group icon" />
                 <Avatar src={groupIconPreview || undefined} alt="Group icon preview" variant="rounded" sx={{ width: 56, height: 56, borderRadius: 2 }}>{groupIconFile ? null : <GroupsRoundedIcon />}</Avatar>
                 <Box>
@@ -1198,7 +1268,7 @@ const MessagesPage = () => {
                             />
                           )}
                           label={(
-                            <Stack direction="row" spacing={1.25} alignItems="center">
+                            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
                               <Avatar src={person.profilePicture} alt="" sx={{ width: 34, height: 34 }}>{person.name?.[0] || '?'}</Avatar>
                               <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="body2" fontWeight={650} noWrap>{person.name || 'Vuprise member'}</Typography>
@@ -1221,7 +1291,7 @@ const MessagesPage = () => {
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={closeGroupDialog} disabled={creatingGroup}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={creatingGroup}>
+            <Button type="submit" variant="contained" disabled={creatingGroup || groupNameDraft.trim().length < 2 || selectedGroupMembers.length < 2}>
               {creatingGroup ? <CircularProgress size={18} color="inherit" /> : 'Create group'}
             </Button>
           </DialogActions>

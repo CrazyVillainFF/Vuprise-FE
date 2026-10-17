@@ -1,0 +1,20 @@
+/* PromptBar fills the chat width instead of stopping at its 800px design cap. */
+.ai-prompt-bar {
+  width: 100%;
+}
+
+/* Keep attachment toasts clear of the composer and mobile safe areas. */
+.swipe-toast.ai-attach-toast {
+  --st-offset: 104px;
+}
+
+@media (max-width: 600px) {
+  .swipe-toast.ai-attach-toast {
+    --st-offset: 96px;
+  }
+}
+
+/* Generated images keep their natural framing inside the RefineFrame. */
+.ai-generated-frame .refine-frame__print > * {
+  object-fit: contain;
+}

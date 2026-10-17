@@ -14,14 +14,32 @@ const request = (path, body, token, keepalive = false) => fetch(`${baseUrl}${pat
 
 const allWatchedUserIds = () => [...new Set([...watchedUserIdsByScope.values()].flatMap((ids) => ids))].slice(0, 100);
 const syncPresenceWatches = () => {
-  if (!connection?.sessionId) return;
-  request('/realtime/watch', { sessionId: connection.sessionId, userIds: allWatchedUserIds() }, connection.token).catch(() => {});
+  const state = connection;
+  if (!state?.sessionId) return;
+  const userIds = allWatchedUserIds();
+  const watchKey = `${state.sessionId}|${userIds.join(',')}`;
+  if (watchKey === state.lastWatchKey) return;
+  state.lastWatchKey = watchKey;
+  const sentSessionId = state.sessionId;
+  request('/realtime/watch', { sessionId: sentSessionId, userIds }, state.token)
+    .then((response) => {
+      // A watch is the first call that can notice a session ended server-side
+      // (heartbeat TTL or a closed stream). Drop the dead session and let the
+      // events stream reconnect instead of retrying with a stale session ID;
+      // an invalid token still surfaces through the stream's sign-out path.
+      if (response.status === 401 && connection === state && state.sessionId === sentSessionId) {
+        state.lastWatchKey = '';
+        state.sessionId = null;
+        state.controller?.abort();
+      }
+    })
+    .catch(() => { if (connection === state) state.lastWatchKey = ''; });
 };
 
 export function connectRealtime(token) {
   disconnectRealtime();
   if (!token) return;
-  const state = { token, closed: false, running: false, controller: null, sessionId: null, heartbeat: null, retry: 0, beatNow: null };
+  const state = { token, closed: false, running: false, controller: null, sessionId: null, heartbeat: null, retry: 0, beatNow: null, lastWatchKey: '' };
   connection = state;
 
   const run = async () => {
@@ -66,6 +84,7 @@ export function connectRealtime(token) {
             publish({ type: eventName || 'message', ...payload });
             if (eventName === 'ready') {
               state.sessionId = payload.sessionId;
+              state.lastWatchKey = '';
               state.beatNow = async () => {
                 if (state.closed || document.visibilityState === 'hidden' || navigator.onLine === false || !state.sessionId) return;
                 try {
